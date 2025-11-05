@@ -1,12 +1,15 @@
 target_sources(
   matgen
   PRIVATE
-    # sources
+
 )
 
-set_source_files_properties(
-  # sources
-  PROPERTIES
-    LANGUAGE CUDA
-    CUDA_SEPARABLE_COMPILATION ON
-)
+# set_source_files_properties(
+#   "cuda_utils.cu"
+#   "scale_bilinear.cu"
+#   "scale_nearest.cu"
+#   "scale_cuda.cu"
+#   PROPERTIES
+#     LANGUAGE CUDA
+#     CUDA_SEPARABLE_COMPILATION ON
+# )

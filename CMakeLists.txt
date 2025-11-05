@@ -4,15 +4,15 @@ project(
   matgen
   VERSION 0.1.0
   DESCRIPTION "Parallel Sparse Matrix Generation with Nearest Neighbor Search"
-  LANGUAGES C CXX
+  LANGUAGES C CXX CUDA
 )
 
 # =============================================================================
 # Project Options
 # =============================================================================
-option(MATGEN_ENABLE_OPENMP "Enable OpenMP support for shared-memory parallelization" OFF)
-option(MATGEN_ENABLE_MPI "Enable MPI support for distributed-memory parallelization" OFF)
-option(MATGEN_ENABLE_CUDA "Enable CUDA support for GPU acceleration" OFF)
+option(MATGEN_ENABLE_OPENMP "Enable OpenMP support for shared-memory parallelization" ON)
+option(MATGEN_ENABLE_MPI "Enable MPI support for distributed-memory parallelization" ON)
+option(MATGEN_ENABLE_CUDA "Enable CUDA support for GPU acceleration" ON)
 option(MATGEN_BUILD_TESTS "Build unit tests" ON)
 option(MATGEN_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
 option(MATGEN_BUILD_EXAMPLES "Build example programs" ON)

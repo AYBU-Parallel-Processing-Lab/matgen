@@ -1,5 +1,8 @@
 target_sources(
   matgen
   PRIVATE
-    # sources
+    "mpi_utils.c"
+    "scale_bilinear.c"
+    "scale_nearest.c"
+    "scale_mpi.c"
 )
