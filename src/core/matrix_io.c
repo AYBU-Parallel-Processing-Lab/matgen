@@ -13,7 +13,8 @@ static void skip_comments(FILE* f) {
   while ((c = fgetc(f)) != EOF) {
     if (c == '%') {
       /* Skip comment line */
-      while ((c = fgetc(f)) != EOF && c != '\n');
+      while ((c = fgetc(f)) != EOF && c != '\n') {
+      }
     } else if (!isspace(c)) {
       ungetc(c, f);
       break;
