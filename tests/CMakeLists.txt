@@ -1,5 +1,9 @@
 add_executable(matgen_test)
 
+if(MSVC)
+  target_compile_options(matgen_test PRIVATE /EHsc)
+endif()
+
 add_subdirectory("src")
 
 target_link_libraries(

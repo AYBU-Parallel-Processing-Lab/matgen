@@ -15,7 +15,7 @@ class COOMatrixBasicTest : public ::testing::Test {
     }
   }
 
-  matgen_coo_matrix_t* matrix;  // NOLINT
+  matgen_coo_matrix_t* matrix{nullptr};  // NOLINT
 };
 
 // =============================================================================
