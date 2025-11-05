@@ -4,4 +4,5 @@ target_sources(
     "coo_matrix.c"
     "csr_matrix.c"
     "matrix_convert.c"
+    "matrix_io.c"
 )

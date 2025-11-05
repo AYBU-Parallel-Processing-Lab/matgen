@@ -4,4 +4,5 @@ target_sources(
     "coo_matrix_test.cpp"
     "csr_matrix_test.cpp"
     "matrix_convert_test.cpp"
+    "matrix_io_test.cpp"
 )
