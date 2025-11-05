@@ -1,5 +1,5 @@
-#ifndef MATGEN_COO_MATRIX_H
-#define MATGEN_COO_MATRIX_H
+#ifndef MATGEN_CORE_COO_MATRIX_H
+#define MATGEN_CORE_COO_MATRIX_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -148,4 +148,4 @@ size_t matgen_coo_memory_usage(const matgen_coo_matrix_t* matrix);
 }
 #endif
 
-#endif  // MATGEN_COO_MATRIX_H
+#endif  // MATGEN_CORE_COO_MATRIX_H
