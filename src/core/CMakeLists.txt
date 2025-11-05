@@ -5,4 +5,5 @@ target_sources(
     "csr_matrix.c"
     "matrix_convert.c"
     "matrix_io.c"
+    "matrix_generate.c"
 )

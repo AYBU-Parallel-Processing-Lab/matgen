@@ -34,7 +34,7 @@ This project extends the original MatGen sparse matrix generator with:
 - [x] Project structure setup (CMake, C17/C++20)
 - [x] Third-party dependency management
 - [x] Parallel computing frameworks integration (OpenMP, MPI, CUDA)
-- [ ] Sparse matrix storage formats (CSR, CSC, COO)
+- [x] Sparse matrix storage formats (CSR, COO)
 - [ ] Parallel sparse matrix I/O (MPI)
 - [ ] Memory-efficient matrix representation
 

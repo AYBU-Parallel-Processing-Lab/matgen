@@ -16,8 +16,8 @@
 
 #include <stdio.h>
 
-#include "coo_matrix.h"
-#include "csr_matrix.h"
+#include "matgen/core/coo_matrix.h"
+#include "matgen/core/csr_matrix.h"
 
 #ifdef __cplusplus
 extern "C" {
