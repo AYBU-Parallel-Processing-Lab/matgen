@@ -1,17 +1,17 @@
 #ifndef MATGEN_CORE_MATRIX_CONVERT_H
 #define MATGEN_CORE_MATRIX_CONVERT_H
 
+/**
+ * @file matrix_convert.h
+ * @brief Format conversion functions for sparse matrices
+ */
+
 #include "matgen/core/coo_matrix.h"
 #include "matgen/core/csr_matrix.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @file matrix_convert.h
- * @brief Format conversion functions for sparse matrices
- */
 
 /**
  * @brief Convert COO matrix to CSR format

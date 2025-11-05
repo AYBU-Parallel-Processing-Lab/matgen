@@ -1,14 +1,6 @@
 #ifndef MATGEN_CORE_CSR_MATRIX_H
 #define MATGEN_CORE_CSR_MATRIX_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @file csr_matrix.h
  * @brief Compressed Sparse Row (CSR) matrix format
@@ -23,6 +15,14 @@ extern "C" {
  * - Fast row access and row operations
  * - Standard format for sparse BLAS operations
  */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief CSR (Compressed Sparse Row) sparse matrix structure

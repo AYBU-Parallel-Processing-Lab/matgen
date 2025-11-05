@@ -1,14 +1,6 @@
 #ifndef MATGEN_UTIL_LOG_H
 #define MATGEN_UTIL_LOG_H
 
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdio.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @file log.h
  * @brief Simple logging system for MatGen.
@@ -16,6 +8,14 @@ extern "C" {
  * Lightweight logging with configurable levels and output streams.
  * Can be completely disabled at compile time.
  */
+
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // =============================================================================
 // Log Levels

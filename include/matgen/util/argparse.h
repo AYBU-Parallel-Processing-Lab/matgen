@@ -1,14 +1,6 @@
 #ifndef MATGEN_UTIL_ARGPARSE_H
 #define MATGEN_UTIL_ARGPARSE_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @file argparse.h
  * @brief Simple command-line argument parser for MatGen
@@ -20,6 +12,14 @@ extern "C" {
  * - Positional arguments
  * - Automatic help generation
  */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // =============================================================================
 // Types

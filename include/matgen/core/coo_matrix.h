@@ -1,14 +1,6 @@
 #ifndef MATGEN_CORE_COO_MATRIX_H
 #define MATGEN_CORE_COO_MATRIX_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @file coo_matrix.h
  * @brief Coordinate (COO) sparse matrix format.
@@ -19,6 +11,14 @@ extern "C" {
  * - Converting to other formats.
  * - Simple operations that don't require fast access.
  */
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief COO (Coordinate) sparse matrix structure.
