@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 
-#include "matgen/util/log.h"
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // COO Writer

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "matgen/core/csr_matrix.h"
-#include "matgen/util/matrix_convert.h"
+#include "matgen/utils/matrix_convert.h"
 #include "omp_utils.h"
 #include "scale_omp.h"
 

@@ -1,4 +1,4 @@
-#include "matgen/util/log.h"
+#include "matgen/utils/log.h"
 
 #include <stdarg.h>
 #include <string.h>

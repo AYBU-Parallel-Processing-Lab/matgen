@@ -5,7 +5,7 @@
 #include <time.h>
 
 #include "matgen/math/constants.h"
-#include "matgen/util/log.h"
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // Simple RNG for reproducibility

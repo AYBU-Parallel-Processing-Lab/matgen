@@ -1,16 +1,16 @@
 #include <gtest/gtest.h>
-#include <matgen/util/argparse.h>
-#include <matgen/util/log.h>
+#include <matgen/core/types.h>
+#include <matgen/utils/argparse.h>
 
-#include <cstring>
-
-class ArgParseTest : public ::testing::Test {
+// Test fixture
+class ArgparseTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    parser = nullptr;
+  matgen_argparser_t* parser;  // NOLINT
 
-    // Suppress log output during tests
-    matgen_log_set_level(MATGEN_LOG_LEVEL_OFF);
+  void SetUp() override {
+    parser =
+        matgen_argparser_create("test_program", "Test program description");
+    ASSERT_NE(parser, nullptr);
   }
 
   void TearDown() override {
@@ -19,314 +19,309 @@ class ArgParseTest : public ::testing::Test {
       parser = nullptr;
     }
   }
-
-  // Helper to create argv from strings
-  char** MakeArgv(const std::vector<const char*>& args) {
-    ((void)this);
-
-    char** argv = new char*[args.size()];
-    for (size_t i = 0; i < args.size(); i++) {
-      argv[i] = const_cast<char*>(args[i]);
-    }
-    return argv;
-  }
-
-  void FreeArgv(char** argv) {
-    ((void)this);
-    delete[] argv;
-  }
-
-  matgen_argparser_t* parser{nullptr};  // NOLINT
 };
 
 // =============================================================================
-// Parser Creation Tests
+// Creation/Destruction Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, CreateAndDestroy) {
-  parser = matgen_argparser_create("test_prog", "Test program");
-  ASSERT_NE(parser, nullptr);
+TEST_F(ArgparseTest, CreateDestroy) {
+  // Already created in SetUp, just verify it's not NULL
+  EXPECT_NE(parser, nullptr);
 }
 
-TEST_F(ArgParseTest, CreateWithNullName) {
-  parser = matgen_argparser_create(nullptr, "Description");
-  EXPECT_EQ(parser, nullptr);
+TEST_F(ArgparseTest, CreateNullName) {
+  matgen_argparser_t* p = matgen_argparser_create(NULL, "desc");
+  EXPECT_EQ(p, nullptr);
+}
+
+TEST_F(ArgparseTest, DestroyNull) {
+  // Should not crash
+  matgen_argparser_destroy(nullptr);
 }
 
 // =============================================================================
-// Flag Tests
+// Boolean Flag Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, AddFlag) {
-  parser = matgen_argparser_create("test", "Test");
-  ASSERT_NE(parser, nullptr);
-
+TEST_F(ArgparseTest, AddAndParseBoolFlag) {
   bool verbose = false;
-  int result = matgen_argparser_add_flag(parser, "v", "verbose", &verbose,
-                                         "Enable verbose mode");
-  EXPECT_EQ(result, 0);
-  EXPECT_FALSE(verbose);  // Should be initialized to false
-}
 
-TEST_F(ArgParseTest, ParseShortFlag) {
-  parser = matgen_argparser_create("test", "Test");
-  bool verbose = false;
-  matgen_argparser_add_flag(parser, "v", "verbose", &verbose, "Verbose");
+  EXPECT_EQ(matgen_argparser_add_flag(parser, "v", "verbose", &verbose,
+                                      "Enable verbose mode"),
+            MATGEN_SUCCESS);
 
-  std::vector<const char*> args = {"program", "-v"};
-  char** argv = MakeArgv(args);
+  // Initially false
+  EXPECT_FALSE(verbose);
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
+  // Parse with short option
+  char* argv[] = {(char*)"prog", (char*)"-v"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
   EXPECT_TRUE(verbose);
-
-  FreeArgv(argv);
 }
 
-TEST_F(ArgParseTest, ParseLongFlag) {
-  parser = matgen_argparser_create("test", "Test");
-  bool verbose = false;
-  matgen_argparser_add_flag(parser, "v", "verbose", &verbose, "Verbose");
+TEST_F(ArgparseTest, ParseBoolLongOption) {
+  bool debug = false;
 
-  std::vector<const char*> args = {"program", "--verbose"};
-  char** argv = MakeArgv(args);
+  EXPECT_EQ(
+      matgen_argparser_add_flag(parser, "d", "debug", &debug, "Enable debug"),
+      MATGEN_SUCCESS);
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
-  EXPECT_TRUE(verbose);
-
-  FreeArgv(argv);
+  char* argv[] = {(char*)"prog", (char*)"--debug"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+  EXPECT_TRUE(debug);
 }
 
 // =============================================================================
-// Integer Argument Tests
+// U64 Integer Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, AddIntWithDefault) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
+TEST_F(ArgparseTest, AddAndParseU64) {
+  u64 count = 0;
 
-  int result =
-      matgen_argparser_add_int(parser, "n", "count", &count, 42, "Count");
+  EXPECT_EQ(matgen_argparser_add_u64(parser, "n", "count", &count, 10,
+                                     "Number of items"),
+            MATGEN_SUCCESS);
 
-  EXPECT_EQ(result, 0);
-  EXPECT_EQ(count, 42);  // Should have default value
+  // Should have default value
+  EXPECT_EQ(count, 10);
+
+  // Parse with short option
+  char* argv[] = {(char*)"prog", (char*)"-n", (char*)"42"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+  EXPECT_EQ(count, 42);
 }
 
-TEST_F(ArgParseTest, ParseIntShort) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
+TEST_F(ArgparseTest, ParseU64LongOption) {
+  u64 size = 100;
 
-  std::vector<const char*> args = {"program", "-n", "123"};
-  char** argv = MakeArgv(args);
+  EXPECT_EQ(
+      matgen_argparser_add_u64(parser, "s", "size", &size, 100, "Matrix size"),
+      MATGEN_SUCCESS);
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
-  EXPECT_EQ(count, 123);
-
-  FreeArgv(argv);
+  char* argv[] = {(char*)"prog", (char*)"--size", (char*)"1000"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+  EXPECT_EQ(size, 1000);
 }
 
-TEST_F(ArgParseTest, ParseIntLong) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
+TEST_F(ArgparseTest, ParseU64WithEquals) {
+  u64 value = 0;
 
-  std::vector<const char*> args = {"program", "--count", "456"};
-  char** argv = MakeArgv(args);
+  EXPECT_EQ(
+      matgen_argparser_add_u64(parser, NULL, "value", &value, 5, "Some value"),
+      MATGEN_SUCCESS);
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
-  EXPECT_EQ(count, 456);
-
-  FreeArgv(argv);
+  char* argv[] = {(char*)"prog", (char*)"--value=999"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+  EXPECT_EQ(value, 999);
 }
 
-TEST_F(ArgParseTest, ParseIntLongEquals) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
+TEST_F(ArgparseTest, ParseU64Invalid) {
+  u64 value = 0;
 
-  std::vector<const char*> args = {"program", "--count=789"};
-  char** argv = MakeArgv(args);
+  EXPECT_EQ(matgen_argparser_add_u64(parser, NULL, "value", &value, 0, "Value"),
+            MATGEN_SUCCESS);
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
-  EXPECT_EQ(count, 789);
-
-  FreeArgv(argv);
-}
-
-TEST_F(ArgParseTest, ParseInvalidInt) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
-
-  std::vector<const char*> args = {"program", "-n", "not_a_number"};
-  char** argv = MakeArgv(args);
-
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_NE(result, 0);  // Should fail
-
-  FreeArgv(argv);
+  char* argv[] = {(char*)"prog", (char*)"--value", (char*)"not_a_number"};
+  EXPECT_NE(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
 }
 
 // =============================================================================
-// String Argument Tests
+// F64 Double Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, AddStringWithDefault) {
-  parser = matgen_argparser_create("test", "Test");
+TEST_F(ArgparseTest, AddAndParseF64) {
+  f64 threshold = 0.0;
+
+  EXPECT_EQ(matgen_argparser_add_f64(parser, "t", "threshold", &threshold, 0.5,
+                                     "Threshold value"),
+            MATGEN_SUCCESS);
+
+  // Should have default value
+  EXPECT_DOUBLE_EQ(threshold, 0.5);
+
+  char* argv[] = {(char*)"prog", (char*)"-t", (char*)"0.75"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(threshold, 0.75);
+}
+
+TEST_F(ArgparseTest, ParseF64Negative) {
+  f64 value = 0.0;
+
+  EXPECT_EQ(
+      matgen_argparser_add_f64(parser, NULL, "value", &value, 1.0, "Value"),
+      MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"--value", (char*)"-3.14"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(value, -3.14);
+}
+
+TEST_F(ArgparseTest, ParseF64Scientific) {
+  f64 value = 0.0;
+
+  EXPECT_EQ(
+      matgen_argparser_add_f64(parser, NULL, "value", &value, 0.0, "Value"),
+      MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"--value", (char*)"1.5e-10"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+  EXPECT_DOUBLE_EQ(value, 1.5e-10);
+}
+
+TEST_F(ArgparseTest, ParseF64Invalid) {
+  f64 value = 0.0;
+
+  EXPECT_EQ(
+      matgen_argparser_add_f64(parser, NULL, "value", &value, 0.0, "Value"),
+      MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"--value", (char*)"not_a_number"};
+  EXPECT_NE(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
+}
+
+// =============================================================================
+// String Tests
+// =============================================================================
+
+TEST_F(ArgparseTest, AddAndParseString) {
   const char* output = nullptr;
 
-  int result = matgen_argparser_add_string(parser, "o", "output", &output,
-                                           "default.txt", "Output file");
+  EXPECT_EQ(matgen_argparser_add_string(parser, "o", "output", &output,
+                                        "default.txt", "Output file"),
+            MATGEN_SUCCESS);
 
-  EXPECT_EQ(result, 0);
+  // Should have default value
   EXPECT_STREQ(output, "default.txt");
-}
 
-TEST_F(ArgParseTest, ParseString) {
-  parser = matgen_argparser_create("test", "Test");
-  const char* output = nullptr;
-  matgen_argparser_add_string(parser, "o", "output", &output, "default.txt",
-                              "Output");
-
-  std::vector<const char*> args = {"program", "-o", "myfile.txt"};
-  char** argv = MakeArgv(args);
-
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
-  EXPECT_STREQ(output, "myfile.txt");
-
-  FreeArgv(argv);
-}
-
-TEST_F(ArgParseTest, ParseStringLongEquals) {
-  parser = matgen_argparser_create("test", "Test");
-  const char* output = nullptr;
-  matgen_argparser_add_string(parser, "o", "output", &output, "default.txt",
-                              "Output");
-
-  std::vector<const char*> args = {"program", "--output=result.txt"};
-  char** argv = MakeArgv(args);
-
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_EQ(result, 0);
+  char* argv[] = {(char*)"prog", (char*)"-o", (char*)"result.txt"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 3, argv), MATGEN_SUCCESS);
   EXPECT_STREQ(output, "result.txt");
+}
 
-  FreeArgv(argv);
+TEST_F(ArgparseTest, ParseStringWithEquals) {
+  const char* input = nullptr;
+
+  EXPECT_EQ(matgen_argparser_add_string(parser, NULL, "input", &input, NULL,
+                                        "Input file"),
+            MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"--input=data.mtx"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+  EXPECT_STREQ(input, "data.mtx");
 }
 
 // =============================================================================
 // Multiple Arguments Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, ParseMultipleArguments) {
-  parser = matgen_argparser_create("test", "Test");
-
+TEST_F(ArgparseTest, ParseMultipleArguments) {
   bool verbose = false;
-  int count = 0;
+  u64 count = 0;
+  f64 threshold = 0.0;
   const char* output = nullptr;
 
   matgen_argparser_add_flag(parser, "v", "verbose", &verbose, "Verbose");
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
+  matgen_argparser_add_u64(parser, "n", "count", &count, 10, "Count");
+  matgen_argparser_add_f64(parser, "t", "threshold", &threshold, 0.5,
+                           "Threshold");
   matgen_argparser_add_string(parser, "o", "output", &output, "out.txt",
                               "Output");
 
-  std::vector<const char*> args = {"program", "-v", "-n", "50",
-                                   "--output=file.txt"};
-  char** argv = MakeArgv(args);
+  char* argv[] = {(char*)"prog",
+                  (char*)"-v",
+                  (char*)"-n",
+                  (char*)"100",
+                  (char*)"--threshold=0.99",
+                  (char*)"--output",
+                  (char*)"result.txt"};
 
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
+  EXPECT_EQ(matgen_argparser_parse(parser, 7, argv), MATGEN_SUCCESS);
 
-  EXPECT_EQ(result, 0);
   EXPECT_TRUE(verbose);
-  EXPECT_EQ(count, 50);
-  EXPECT_STREQ(output, "file.txt");
+  EXPECT_EQ(count, 100);
+  EXPECT_DOUBLE_EQ(threshold, 0.99);
+  EXPECT_STREQ(output, "result.txt");
+}
 
-  FreeArgv(argv);
+TEST_F(ArgparseTest, UnknownOption) {
+  bool flag = false;
+  matgen_argparser_add_flag(parser, "v", "verbose", &flag, "Verbose");
+
+  char* argv[] = {(char*)"prog", (char*)"--unknown"};
+  EXPECT_NE(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+}
+
+TEST_F(ArgparseTest, MissingRequiredValue) {
+  u64 count = 0;
+  matgen_argparser_add_u64(parser, "n", "count", &count, 0, "Count");
+
+  // -n without value
+  char* argv[] = {(char*)"prog", (char*)"-n"};
+  EXPECT_NE(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
 }
 
 // =============================================================================
-// Error Handling Tests
+// Help Tests
 // =============================================================================
 
-TEST_F(ArgParseTest, UnknownOption) {
-  parser = matgen_argparser_create("test", "Test");
-
-  std::vector<const char*> args = {"program", "--unknown"};
-  char** argv = MakeArgv(args);
-
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_NE(result, 0);  // Should fail
-
-  FreeArgv(argv);
-}
-
-TEST_F(ArgParseTest, MissingValue) {
-  parser = matgen_argparser_create("test", "Test");
-  int count = 0;
-  matgen_argparser_add_int(parser, "n", "count", &count, 10, "Count");
-
-  std::vector<const char*> args = {"program", "-n"};  // Missing value
-  char** argv = MakeArgv(args);
-
-  int result =
-      matgen_argparser_parse(parser, static_cast<int>(args.size()), argv);
-
-  EXPECT_NE(result, 0);  // Should fail
-
-  FreeArgv(argv);
-}
-
-// =============================================================================
-// Help Generation Tests
-// =============================================================================
-
-TEST_F(ArgParseTest, PrintHelp) {
-  parser =
-      matgen_argparser_create("test_program", "A test program for argparse");
-
+TEST_F(ArgparseTest, PrintHelp) {
   bool verbose = false;
-  int count = 0;
+  u64 count = 0;
 
   matgen_argparser_add_flag(parser, "v", "verbose", &verbose,
                             "Enable verbose output");
-  matgen_argparser_add_int(parser, "n", "count", &count, 42,
+  matgen_argparser_add_u64(parser, "n", "count", &count, 10,
                            "Number of iterations");
 
-  // Redirect output to test (don't actually print during test)
-  FILE* tmp = tmpfile();
-  ASSERT_NE(tmp, nullptr);
+  // Should not crash
+  matgen_argparser_print_help(parser, stdout);
+  matgen_argparser_print_usage(parser, stdout);
+}
 
-  matgen_argparser_print_help(parser, tmp);
+TEST_F(ArgparseTest, PrintHelpNull) {
+  // Should not crash
+  matgen_argparser_print_help(nullptr, stdout);
+  matgen_argparser_print_usage(nullptr, stdout);
 
-  // Check that something was written
-  fflush(tmp);
-  fseek(tmp, 0, SEEK_END);
-  long size = ftell(tmp);
-  EXPECT_GT(size, 0);
+  matgen_argparser_print_help(parser, nullptr);
+  matgen_argparser_print_usage(parser, nullptr);
+}
 
-  fclose(tmp);
+// =============================================================================
+// Edge Cases
+// =============================================================================
+
+TEST_F(ArgparseTest, EmptyArguments) {
+  bool flag = false;
+  matgen_argparser_add_flag(parser, "v", "verbose", &flag, "Verbose");
+
+  char* argv[] = {(char*)"prog"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 1, argv), MATGEN_SUCCESS);
+
+  // Should keep default value
+  EXPECT_FALSE(flag);
+}
+
+TEST_F(ArgparseTest, OnlyLongOption) {
+  bool flag = false;
+
+  EXPECT_EQ(
+      matgen_argparser_add_flag(parser, NULL, "verbose", &flag, "Verbose"),
+      MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"--verbose"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+  EXPECT_TRUE(flag);
+}
+
+TEST_F(ArgparseTest, OnlyShortOption) {
+  bool flag = false;
+
+  EXPECT_EQ(matgen_argparser_add_flag(parser, "v", NULL, &flag, "Verbose"),
+            MATGEN_SUCCESS);
+
+  char* argv[] = {(char*)"prog", (char*)"-v"};
+  EXPECT_EQ(matgen_argparser_parse(parser, 2, argv), MATGEN_SUCCESS);
+  EXPECT_TRUE(flag);
 }

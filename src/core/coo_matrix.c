@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "matgen/util/log.h"
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // Configuration

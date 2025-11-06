@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "matgen/util/log.h"
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // COO to CSR Conversion

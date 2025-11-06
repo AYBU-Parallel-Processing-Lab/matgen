@@ -1,10 +1,8 @@
-#include "matgen/math/spmv.h"
-
 #include <gtest/gtest.h>
-
-#include "matgen/core/conversion.h"
-#include "matgen/core/coo_matrix.h"
-#include "matgen/core/csr_matrix.h"
+#include <matgen/core/conversion.h>
+#include <matgen/core/coo_matrix.h>
+#include <matgen/core/csr_matrix.h>
+#include <matgen/math/spmv.h>
 
 // =============================================================================
 // CSR SpMV Tests

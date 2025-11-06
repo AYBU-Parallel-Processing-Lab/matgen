@@ -1,6 +1,5 @@
-#include "matgen/core/types.h"
-
 #include <gtest/gtest.h>
+#include <matgen/core/types.h>
 
 #include <limits>
 

@@ -15,7 +15,6 @@ option(MATGEN_ENABLE_MPI "Enable MPI support for distributed-memory parallelizat
 option(MATGEN_ENABLE_CUDA "Enable CUDA support for GPU acceleration" ON)
 option(MATGEN_BUILD_TESTS "Build unit tests" ON)
 option(MATGEN_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
-option(MATGEN_BUILD_EXAMPLES "Build example programs" ON)
 
 # =============================================================================
 # C/C++ Standards
@@ -138,10 +137,6 @@ endif()
 # =============================================================================
 add_subdirectory("src")
 add_subdirectory("third_party")
-
-if(MATGEN_BUILD_EXAMPLES)
-  add_subdirectory("examples")
-endif()
 
 if(MATGEN_BUILD_TESTS)
   enable_testing()

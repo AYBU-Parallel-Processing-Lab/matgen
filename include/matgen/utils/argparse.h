@@ -1,5 +1,5 @@
-#ifndef MATGEN_UTIL_ARGPARSE_H
-#define MATGEN_UTIL_ARGPARSE_H
+#ifndef MATGEN_UTILS_ARGPARSE_H
+#define MATGEN_UTILS_ARGPARSE_H
 
 /**
  * @file argparse.h
@@ -13,9 +13,9 @@
  * - Automatic help generation
  */
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdio.h>
+
+#include "matgen/core/types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,8 +30,11 @@ extern "C" {
  */
 typedef enum {
   MATGEN_ARG_BOOL,       // Boolean flag (no argument)
-  MATGEN_ARG_INT,        // Integer argument
-  MATGEN_ARG_DOUBLE,     // Double argument
+  MATGEN_ARG_I32,        // 32-bit signed integer
+  MATGEN_ARG_I64,        // 64-bit signed integer
+  MATGEN_ARG_U32,        // 32-bit unsigned integer
+  MATGEN_ARG_U64,        // 64-bit unsigned integer
+  MATGEN_ARG_F64,        // Double precision float
   MATGEN_ARG_STRING,     // String argument
   MATGEN_ARG_POSITIONAL  // Positional argument
 } matgen_arg_type_t;
@@ -45,12 +48,13 @@ typedef struct {
   matgen_arg_type_t type;  // Argument type
   void* dest;              // Pointer to store the parsed value
   const char* help;        // Help text
-  const char* default_value;  // Default value as string (for display purposes)
-  bool required;              // Whether the argument is required
+  const char* metavar;     // Variable name for help (e.g., "FILE", "NUM")
+  const char* default_str;  // Default value as string (for display)
+  bool required;            // Whether the argument is required
 } matgen_arg_t;
 
 /**
- * @brief Argument parser context
+ * @brief Argument parser context (opaque)
  */
 typedef struct matgen_argparser matgen_argparser_t;
 
@@ -71,7 +75,7 @@ matgen_argparser_t* matgen_argparser_create(const char* program_name,
 /**
  * @brief Destroy an argument parser
  *
- * @param parser Parser to destroy
+ * @param parser Parser to destroy (can be NULL)
  */
 void matgen_argparser_destroy(matgen_argparser_t* parser);
 
@@ -84,9 +88,10 @@ void matgen_argparser_destroy(matgen_argparser_t* parser);
  *
  * @param parser Parser instance
  * @param arg Argument definition
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_argparser_add(matgen_argparser_t* parser, const matgen_arg_t* arg);
+matgen_error_t matgen_argparser_add(matgen_argparser_t* parser,
+                                    const matgen_arg_t* arg);
 
 /**
  * @brief Add a boolean flag (e.g., --verbose, -v)
@@ -96,26 +101,44 @@ int matgen_argparser_add(matgen_argparser_t* parser, const matgen_arg_t* arg);
  * @param long_opt Long option (can be NULL)
  * @param dest Pointer to bool to store result
  * @param help Help text
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_argparser_add_flag(matgen_argparser_t* parser, const char* short_opt,
-                              const char* long_opt, bool* dest,
-                              const char* help);
+matgen_error_t matgen_argparser_add_flag(matgen_argparser_t* parser,
+                                         const char* short_opt,
+                                         const char* long_opt, bool* dest,
+                                         const char* help);
 
 /**
- * @brief Add an integer option (e.g., --count=10, -n 10)
+ * @brief Add a 64-bit unsigned integer option (e.g., --count=10, -n 10)
  *
  * @param parser Parser instance
  * @param short_opt Short option (can be NULL)
  * @param long_opt Long option (can be NULL)
- * @param dest Pointer to int to store result
+ * @param dest Pointer to u64 to store result
  * @param default_val Default value
  * @param help Help text
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_argparser_add_int(matgen_argparser_t* parser, const char* short_opt,
-                             const char* long_opt, int* dest, int default_val,
-                             const char* help);
+matgen_error_t matgen_argparser_add_u64(matgen_argparser_t* parser,
+                                        const char* short_opt,
+                                        const char* long_opt, u64* dest,
+                                        u64 default_val, const char* help);
+
+/**
+ * @brief Add a double precision float option (e.g., --threshold=0.5, -t 0.5)
+ *
+ * @param parser Parser instance
+ * @param short_opt Short option (can be NULL)
+ * @param long_opt Long option (can be NULL)
+ * @param dest Pointer to f64 to store result
+ * @param default_val Default value
+ * @param help Help text
+ * @return MATGEN_SUCCESS on success, error code on failure
+ */
+matgen_error_t matgen_argparser_add_f64(matgen_argparser_t* parser,
+                                        const char* short_opt,
+                                        const char* long_opt, f64* dest,
+                                        f64 default_val, const char* help);
 
 /**
  * @brief Add a string option (e.g., --output=file.txt, -o file.txt)
@@ -126,12 +149,11 @@ int matgen_argparser_add_int(matgen_argparser_t* parser, const char* short_opt,
  * @param dest Pointer to const char* to store result
  * @param default_val Default value (can be NULL)
  * @param help Help text
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_argparser_add_string(matgen_argparser_t* parser,
-                                const char* short_opt, const char* long_opt,
-                                const char** dest, const char* default_val,
-                                const char* help);
+matgen_error_t matgen_argparser_add_string(
+    matgen_argparser_t* parser, const char* short_opt, const char* long_opt,
+    const char** dest, const char* default_val, const char* help);
 
 // =============================================================================
 // Parsing
@@ -143,9 +165,10 @@ int matgen_argparser_add_string(matgen_argparser_t* parser,
  * @param parser Parser instance
  * @param argc Argument count from main()
  * @param argv Argument vector from main()
- * @return 0 on success, non-zero on error
+ * @return MATGEN_SUCCESS on success, error code on failure
  */
-int matgen_argparser_parse(matgen_argparser_t* parser, int argc, char** argv);
+matgen_error_t matgen_argparser_parse(matgen_argparser_t* parser, i32 argc,
+                                      char** argv);
 
 /**
  * @brief Print help message
@@ -169,4 +192,4 @@ void matgen_argparser_print_usage(const matgen_argparser_t* parser,
 }
 #endif
 
-#endif  // MATGEN_UTIL_ARGPARSE_H
+#endif  // MATGEN_UTILS_ARGPARSE_H

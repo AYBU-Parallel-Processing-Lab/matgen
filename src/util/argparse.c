@@ -1,22 +1,24 @@
-#include "matgen/util/argparse.h"
+#include "matgen/utils/argparse.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "matgen/util/log.h"
-
-#define MAX_ARGS 64
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // Internal Structures
 // =============================================================================
 
+#define MAX_ARGS 64
+
 struct matgen_argparser {
   const char* program_name;
   const char* description;
   matgen_arg_t args[MAX_ARGS];
-  size_t num_args;
+  char* allocated_strs[MAX_ARGS];
+  u32 arg_count;
+  u32 alloc_count;
 };
 
 // =============================================================================
@@ -26,23 +28,21 @@ struct matgen_argparser {
 matgen_argparser_t* matgen_argparser_create(const char* program_name,
                                             const char* description) {
   if (!program_name) {
+    MATGEN_LOG_ERROR("NULL program_name");
     return NULL;
   }
 
   matgen_argparser_t* parser =
       (matgen_argparser_t*)malloc(sizeof(matgen_argparser_t));
   if (!parser) {
+    MATGEN_LOG_ERROR("Failed to allocate argparser");
     return NULL;
   }
 
   parser->program_name = program_name;
   parser->description = description;
-  parser->num_args = 0;
-
-  // Add default help flag
-  bool* help_flag = (bool*)calloc(1, sizeof(bool));
-  matgen_argparser_add_flag(parser, "h", "help", help_flag,
-                            "Show this help message");
+  parser->arg_count = 0;
+  parser->alloc_count = 0;
 
   return parser;
 }
@@ -51,6 +51,12 @@ void matgen_argparser_destroy(matgen_argparser_t* parser) {
   if (!parser) {
     return;
   }
+
+  // Free allocated default strings
+  for (u32 i = 0; i < parser->alloc_count; i++) {
+    free(parser->allocated_strs[i]);
+  }
+
   free(parser);
 }
 
@@ -58,32 +64,49 @@ void matgen_argparser_destroy(matgen_argparser_t* parser) {
 // Adding Arguments
 // =============================================================================
 
-int matgen_argparser_add(matgen_argparser_t* parser, const matgen_arg_t* arg) {
+matgen_error_t matgen_argparser_add(matgen_argparser_t* parser,
+                                    const matgen_arg_t* arg) {
   if (!parser || !arg) {
-    return -1;
+    MATGEN_LOG_ERROR("NULL pointer argument");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
-  if (parser->num_args >= MAX_ARGS) {
-    MATGEN_LOG_ERROR("Maximum number of arguments (%d) reached", MAX_ARGS);
-    return -1;
+  if (parser->arg_count >= MAX_ARGS) {
+    MATGEN_LOG_ERROR("Too many arguments (max %d)", MAX_ARGS);
+    return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
-  parser->args[parser->num_args++] = *arg;
-  return 0;
+  if (!arg->short_opt && !arg->long_opt) {
+    MATGEN_LOG_ERROR(
+        "Argument must have at least one of short_opt or long_opt");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (!arg->dest) {
+    MATGEN_LOG_ERROR("Argument dest cannot be NULL");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  parser->args[parser->arg_count] = *arg;
+  parser->arg_count++;
+
+  return MATGEN_SUCCESS;
 }
 
-int matgen_argparser_add_flag(matgen_argparser_t* parser, const char* short_opt,
-                              const char* long_opt, bool* dest,
-                              const char* help) {
+matgen_error_t matgen_argparser_add_flag(matgen_argparser_t* parser,
+                                         const char* short_opt,
+                                         const char* long_opt, bool* dest,
+                                         const char* help) {
   matgen_arg_t arg = {.short_opt = short_opt,
                       .long_opt = long_opt,
                       .type = MATGEN_ARG_BOOL,
                       .dest = dest,
                       .help = help,
-                      .default_value = NULL,
+                      .metavar = NULL,
+                      .default_str = "false",
                       .required = false};
 
-  // Initialize to false
+  // Set default value
   if (dest) {
     *dest = false;
   }
@@ -91,38 +114,108 @@ int matgen_argparser_add_flag(matgen_argparser_t* parser, const char* short_opt,
   return matgen_argparser_add(parser, &arg);
 }
 
-int matgen_argparser_add_int(matgen_argparser_t* parser, const char* short_opt,
-                             const char* long_opt, int* dest, int default_val,
-                             const char* help) {
-  static char default_buf[32];
-  snprintf(default_buf, sizeof(default_buf), "%d", default_val);
+matgen_error_t matgen_argparser_add_u64(matgen_argparser_t* parser,
+                                        const char* short_opt,
+                                        const char* long_opt, u64* dest,
+                                        u64 default_val, const char* help) {
+  if (!parser || !dest) {
+    MATGEN_LOG_ERROR("NULL pointer argument");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (parser->alloc_count >= MAX_ARGS) {
+    MATGEN_LOG_ERROR("Too many allocated strings");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+  // Allocate buffer for default string
+  char* default_str = (char*)malloc(32);
+  if (!default_str) {
+    MATGEN_LOG_ERROR("Failed to allocate default string");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+  snprintf(default_str, 32, "%llu", (unsigned long long)default_val);
 
   matgen_arg_t arg = {.short_opt = short_opt,
                       .long_opt = long_opt,
-                      .type = MATGEN_ARG_INT,
+                      .type = MATGEN_ARG_U64,
                       .dest = dest,
                       .help = help,
-                      .default_value = default_buf,
+                      .metavar = "NUM",
+                      .default_str = default_str,
                       .required = false};
 
   // Set default value
-  if (dest) {
-    *dest = default_val;
+  *dest = default_val;
+
+  matgen_error_t err = matgen_argparser_add(parser, &arg);
+  if (err != MATGEN_SUCCESS) {
+    free(default_str);
+    return err;
   }
 
-  return matgen_argparser_add(parser, &arg);
+  // Track allocation
+  parser->allocated_strs[parser->alloc_count++] = default_str;
+
+  return MATGEN_SUCCESS;
 }
 
-int matgen_argparser_add_string(matgen_argparser_t* parser,
-                                const char* short_opt, const char* long_opt,
-                                const char** dest, const char* default_val,
-                                const char* help) {
+matgen_error_t matgen_argparser_add_f64(matgen_argparser_t* parser,
+                                        const char* short_opt,
+                                        const char* long_opt, f64* dest,
+                                        f64 default_val, const char* help) {
+  if (!parser || !dest) {
+    MATGEN_LOG_ERROR("NULL pointer argument");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (parser->alloc_count >= MAX_ARGS) {
+    MATGEN_LOG_ERROR("Too many allocated strings");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+  // Allocate buffer for default string
+  char* default_str = (char*)malloc(32);
+  if (!default_str) {
+    MATGEN_LOG_ERROR("Failed to allocate default string");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+  snprintf(default_str, 32, "%.6g", default_val);
+
+  matgen_arg_t arg = {.short_opt = short_opt,
+                      .long_opt = long_opt,
+                      .type = MATGEN_ARG_F64,
+                      .dest = dest,
+                      .help = help,
+                      .metavar = "NUM",
+                      .default_str = default_str,
+                      .required = false};
+
+  // Set default value
+  *dest = default_val;
+
+  matgen_error_t err = matgen_argparser_add(parser, &arg);
+  if (err != MATGEN_SUCCESS) {
+    free(default_str);
+    return err;
+  }
+
+  // Track allocation
+  parser->allocated_strs[parser->alloc_count++] = default_str;
+
+  return MATGEN_SUCCESS;
+}
+
+matgen_error_t matgen_argparser_add_string(
+    matgen_argparser_t* parser, const char* short_opt, const char* long_opt,
+    const char** dest, const char* default_val, const char* help) {
   matgen_arg_t arg = {.short_opt = short_opt,
                       .long_opt = long_opt,
                       .type = MATGEN_ARG_STRING,
                       .dest = (void*)dest,
                       .help = help,
-                      .default_value = default_val,
+                      .metavar = "STR",
+                      .default_str = default_val ? default_val : "NULL",
                       .required = false};
 
   // Set default value
@@ -134,12 +227,12 @@ int matgen_argparser_add_string(matgen_argparser_t* parser,
 }
 
 // =============================================================================
-// Parsing Implementation
+// Parsing Helpers
 // =============================================================================
 
-static matgen_arg_t* find_arg_by_short(matgen_argparser_t* parser,
-                                       const char* opt) {
-  for (size_t i = 0; i < parser->num_args; i++) {
+static matgen_arg_t* find_short_opt(matgen_argparser_t* parser,
+                                    const char* opt) {
+  for (u32 i = 0; i < parser->arg_count; i++) {
     if (parser->args[i].short_opt &&
         strcmp(parser->args[i].short_opt, opt) == 0) {
       return &parser->args[i];
@@ -148,9 +241,9 @@ static matgen_arg_t* find_arg_by_short(matgen_argparser_t* parser,
   return NULL;
 }
 
-static matgen_arg_t* find_arg_by_long(matgen_argparser_t* parser,
-                                      const char* opt) {
-  for (size_t i = 0; i < parser->num_args; i++) {
+static matgen_arg_t* find_long_opt(matgen_argparser_t* parser,
+                                   const char* opt) {
+  for (u32 i = 0; i < parser->arg_count; i++) {
     if (parser->args[i].long_opt &&
         strcmp(parser->args[i].long_opt, opt) == 0) {
       return &parser->args[i];
@@ -159,9 +252,9 @@ static matgen_arg_t* find_arg_by_long(matgen_argparser_t* parser,
   return NULL;
 }
 
-static int parse_value(matgen_arg_t* arg, const char* value) {
-  if (!arg || !value) {
-    return -1;
+static matgen_error_t parse_value(matgen_arg_t* arg, const char* value_str) {
+  if (!arg || !value_str) {
+    return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
   switch (arg->type) {
@@ -169,114 +262,134 @@ static int parse_value(matgen_arg_t* arg, const char* value) {
       *(bool*)arg->dest = true;
       break;
 
-    case MATGEN_ARG_INT: {
+    case MATGEN_ARG_U64: {
       char* endptr;
-      long val = strtol(value, &endptr, 10);
+      unsigned long long val = strtoull(value_str, &endptr, 10);
       if (*endptr != '\0') {
-        MATGEN_LOG_ERROR("Invalid integer value: %s", value);
-        return -1;
+        MATGEN_LOG_ERROR("Invalid u64 value: %s", value_str);
+        return MATGEN_ERROR_INVALID_ARGUMENT;
       }
-      *(int*)arg->dest = (int)val;
+      *(u64*)arg->dest = (u64)val;
       break;
     }
 
-    case MATGEN_ARG_DOUBLE: {
+    case MATGEN_ARG_I64: {
       char* endptr;
-      double val = strtod(value, &endptr);
+      long long val = strtoll(value_str, &endptr, 10);
       if (*endptr != '\0') {
-        MATGEN_LOG_ERROR("Invalid double value: %s", value);
-        return -1;
+        MATGEN_LOG_ERROR("Invalid i64 value: %s", value_str);
+        return MATGEN_ERROR_INVALID_ARGUMENT;
       }
-      *(double*)arg->dest = val;
+      *(i64*)arg->dest = (i64)val;
+      break;
+    }
+
+    case MATGEN_ARG_F64: {
+      char* endptr;
+      double val = strtod(value_str, &endptr);
+      if (*endptr != '\0') {
+        MATGEN_LOG_ERROR("Invalid f64 value: %s", value_str);
+        return MATGEN_ERROR_INVALID_ARGUMENT;
+      }
+      *(f64*)arg->dest = val;
       break;
     }
 
     case MATGEN_ARG_STRING:
-      *(const char**)arg->dest = value;
+      *(const char**)arg->dest = value_str;
       break;
 
     default:
-      return -1;
+      MATGEN_LOG_ERROR("Unknown argument type: %d", arg->type);
+      return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
-  return 0;
+  return MATGEN_SUCCESS;
 }
 
-// NOLINTNEXTLINE
-int matgen_argparser_parse(matgen_argparser_t* parser, int argc, char** argv) {
-  if (!parser || argc < 1) {
-    return -1;
+// =============================================================================
+// Parsing
+// =============================================================================
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+matgen_error_t matgen_argparser_parse(matgen_argparser_t* parser, i32 argc,
+                                      char** argv) {
+  if (!parser || !argv) {
+    MATGEN_LOG_ERROR("NULL pointer argument");
+    return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
-  for (int i = 1; i < argc; i++) {
+  for (i32 i = 1; i < argc; i++) {
     const char* arg_str = argv[i];
 
-    // Long option: --option or --option=value
+    // Check for long option (--option)
     if (strncmp(arg_str, "--", 2) == 0) {
       const char* opt_name = arg_str + 2;
-      const char* eq = strchr(opt_name, '=');
+      const char* eq_pos = strchr(opt_name, '=');
+      char opt_buf[256];
 
-      char opt_buf[64];
-      if (eq) {
-        // --option=value format
-        size_t len = eq - opt_name;
+      if (eq_pos) {
+        // Format: --option=value
+        size_t len = eq_pos - opt_name;
         if (len >= sizeof(opt_buf)) {
-          MATGEN_LOG_ERROR("Option name too long: %s", arg_str);
-          return -1;
+          len = sizeof(opt_buf) - 1;
         }
         strncpy(opt_buf, opt_name, len);
         opt_buf[len] = '\0';
-        opt_name = opt_buf;
-      }
 
-      matgen_arg_t* arg = find_arg_by_long(parser, opt_name);
-      if (!arg) {
-        MATGEN_LOG_ERROR("Unknown option: --%s", opt_name);
-        return -1;
-      }
-
-      // Handle value
-      if (arg->type == MATGEN_ARG_BOOL) {
-        *(bool*)arg->dest = true;
-      } else {
-        const char* value;
-        if (eq) {
-          value = eq + 1;
-        } else {
-          if (i + 1 >= argc) {
-            MATGEN_LOG_ERROR("Option --%s requires a value", opt_name);
-            return -1;
-          }
-          value = argv[++i];
+        matgen_arg_t* arg = find_long_opt(parser, opt_buf);
+        if (!arg) {
+          MATGEN_LOG_ERROR("Unknown option: --%s", opt_buf);
+          return MATGEN_ERROR_INVALID_ARGUMENT;
         }
 
-        if (parse_value(arg, value) != 0) {
-          return -1;
+        if (parse_value(arg, eq_pos + 1) != MATGEN_SUCCESS) {
+          return MATGEN_ERROR_INVALID_ARGUMENT;
+        }
+      } else {
+        // Format: --option [value]
+        matgen_arg_t* arg = find_long_opt(parser, opt_name);
+        if (!arg) {
+          MATGEN_LOG_ERROR("Unknown option: --%s", opt_name);
+          return MATGEN_ERROR_INVALID_ARGUMENT;
+        }
+
+        if (arg->type == MATGEN_ARG_BOOL) {
+          parse_value(arg, "true");
+        } else {
+          // Need next argument
+          if (i + 1 >= argc) {
+            MATGEN_LOG_ERROR("Option --%s requires an argument", opt_name);
+            return MATGEN_ERROR_INVALID_ARGUMENT;
+          }
+          i++;
+          if (parse_value(arg, argv[i]) != MATGEN_SUCCESS) {
+            return MATGEN_ERROR_INVALID_ARGUMENT;
+          }
         }
       }
     }
-    // Short option: -o or -o value
-    else if (arg_str[0] == '-' && arg_str[1] != '\0') {
+    // Check for short option (-o)
+    else if (arg_str[0] == '-' && arg_str[1] != '\0' && arg_str[1] != '-') {
       const char* opt_name = arg_str + 1;
 
-      matgen_arg_t* arg = find_arg_by_short(parser, opt_name);
+      matgen_arg_t* arg = find_short_opt(parser, opt_name);
       if (!arg) {
         MATGEN_LOG_ERROR("Unknown option: -%s", opt_name);
-        return -1;
+        return MATGEN_ERROR_INVALID_ARGUMENT;
       }
 
-      // Handle value
       if (arg->type == MATGEN_ARG_BOOL) {
-        *(bool*)arg->dest = true;
+        parse_value(arg, "true");
       } else {
+        // Need next argument
         if (i + 1 >= argc) {
-          MATGEN_LOG_ERROR("Option -%s requires a value", opt_name);
-          return -1;
+          MATGEN_LOG_ERROR("Option -%s requires an argument", opt_name);
+          return MATGEN_ERROR_INVALID_ARGUMENT;
         }
-        const char* value = argv[++i];
-
-        if (parse_value(arg, value) != 0) {
-          return -1;
+        i++;
+        if (parse_value(arg, argv[i]) != MATGEN_SUCCESS) {
+          return MATGEN_ERROR_INVALID_ARGUMENT;
         }
       }
     }
@@ -286,22 +399,11 @@ int matgen_argparser_parse(matgen_argparser_t* parser, int argc, char** argv) {
     }
   }
 
-  // Check if help was requested
-  for (size_t i = 0; i < parser->num_args; i++) {
-    if (parser->args[i].type == MATGEN_ARG_BOOL && parser->args[i].long_opt &&
-        strcmp(parser->args[i].long_opt, "help") == 0) {
-      if (*(bool*)parser->args[i].dest) {
-        matgen_argparser_print_help(parser, stdout);
-        exit(0);
-      }
-    }
-  }
-
-  return 0;
+  return MATGEN_SUCCESS;
 }
 
 // =============================================================================
-// Help Generation
+// Help
 // =============================================================================
 
 void matgen_argparser_print_usage(const matgen_argparser_t* parser,
@@ -319,6 +421,7 @@ void matgen_argparser_print_help(const matgen_argparser_t* parser,
     return;
   }
 
+  // Print usage
   matgen_argparser_print_usage(parser, stream);
 
   if (parser->description) {
@@ -327,11 +430,13 @@ void matgen_argparser_print_help(const matgen_argparser_t* parser,
 
   fprintf(stream, "\nOptions:\n");
 
-  for (size_t i = 0; i < parser->num_args; i++) {
+  // Print all arguments
+  for (u32 i = 0; i < parser->arg_count; i++) {
     const matgen_arg_t* arg = &parser->args[i];
 
     fprintf(stream, "  ");
 
+    // Print short option
     if (arg->short_opt) {
       fprintf(stream, "-%s", arg->short_opt);
       if (arg->long_opt) {
@@ -341,31 +446,25 @@ void matgen_argparser_print_help(const matgen_argparser_t* parser,
       fprintf(stream, "    ");
     }
 
+    // Print long option
     if (arg->long_opt) {
       fprintf(stream, "--%s", arg->long_opt);
     }
 
-    // Add type hint
-    switch (arg->type) {
-      case MATGEN_ARG_INT:
-        fprintf(stream, " <int>");
-        break;
-      case MATGEN_ARG_DOUBLE:
-        fprintf(stream, " <double>");
-        break;
-      case MATGEN_ARG_STRING:
-        fprintf(stream, " <string>");
-        break;
-      default:
-        break;
-    }
-
-    fprintf(stream, "\n      %s", arg->help ? arg->help : "");
-
-    if (arg->default_value) {
-      fprintf(stream, " (default: %s)", arg->default_value);
+    // Print metavar
+    if (arg->type != MATGEN_ARG_BOOL && arg->metavar) {
+      fprintf(stream, " <%s>", arg->metavar);
     }
 
     fprintf(stream, "\n");
+
+    // Print help text
+    if (arg->help) {
+      fprintf(stream, "      %s", arg->help);
+      if (arg->default_str && arg->type != MATGEN_ARG_BOOL) {
+        fprintf(stream, " (default: %s)", arg->default_str);
+      }
+      fprintf(stream, "\n");
+    }
   }
 }
