@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.30)
 
 project(
   matgen
@@ -42,10 +42,10 @@ endif()
 
 # OpenMP
 if(MATGEN_ENABLE_OPENMP)
+  set(OpenMP_RUNTIME_MSVC "llvm")
   find_package(OpenMP REQUIRED)
   if(OpenMP_FOUND)
     message(STATUS "OpenMP found: ${OpenMP_C_VERSION}")
-    set(MATGEN_HAS_OPENMP TRUE)
   else()
     message(FATAL_ERROR "OpenMP requested but not found")
   endif()

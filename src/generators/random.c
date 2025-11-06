@@ -208,15 +208,9 @@ matgen_coo_matrix_t* matgen_random_generate(
           "Using shuffle method for dense generation (fill_ratio=%.2f)",
           fill_ratio);
 
-      // For dense matrices, generate all positions and randomly select
-      // This is more efficient than rejection sampling when fill_ratio is high
-
-      // We'll use a simpler approach: generate nnz unique random positions
-      // by shuffling a virtual array of indices
-
       for (matgen_size_t i = 0; i < nnz; i++) {
-        matgen_index_t row;
-        matgen_index_t col;
+        matgen_index_t row = 0;
+        matgen_index_t col = 0;
         bool found_unique = false;
         matgen_size_t attempts = 0;
         matgen_size_t max_attempts = 1000;
