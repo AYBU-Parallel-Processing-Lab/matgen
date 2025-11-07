@@ -452,7 +452,7 @@ Examples:
         fig.suptitle(f"Sparsity Pattern Comparison | Value Conserved: {conserved} | {nnz_info}",
                     fontsize=14, fontweight='bold')
 
-        plt.tight_layout(rect=[0, 0.03, 1, 0.96])
+        plt.tight_layout(rect=(0, 0.03, 1, 0.96))
         plt.show()
 
 
