@@ -19,28 +19,6 @@
 // Internal Helper Functions
 // =============================================================================
 
-// Comparison helper for sorting COO entries
-static inline int compare_entry(matgen_index_t row1, matgen_index_t col1,
-                                matgen_index_t row2, matgen_index_t col2) {
-  if (row1 < row2) {
-    return -1;
-  }
-
-  if (row1 > row2) {
-    return 1;
-  }
-
-  if (col1 < col2) {
-    return -1;
-  }
-
-  if (col1 > col2) {
-    return 1;
-  }
-
-  return 0;
-}
-
 // Resize internal arrays
 static matgen_error_t coo_resize(matgen_coo_matrix_t* matrix,
                                  matgen_size_t new_capacity) {

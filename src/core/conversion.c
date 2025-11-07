@@ -55,6 +55,8 @@ matgen_csr_matrix_t* matgen_coo_to_csr(const matgen_coo_matrix_t* coo) {
            coo->nnz * sizeof(matgen_index_t));
     memcpy(coo_sorted->values, coo->values, coo->nnz * sizeof(matgen_value_t));
     coo_sorted->nnz = coo->nnz;
+    coo_sorted->is_sorted =
+        false;  // Mark as unsorted - we just copied unsorted data
 
     // Sort the copy
     if (matgen_coo_sort(coo_sorted) != MATGEN_SUCCESS) {

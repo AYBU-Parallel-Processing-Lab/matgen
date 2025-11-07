@@ -1,0 +1,164 @@
+#include "matgen/algorithms/scaling/nearest_neighbor.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+#include "matgen/core/conversion.h"
+#include "matgen/core/coo_matrix.h"
+
+// =============================================================================
+// Helper: Hash table for accumulating values at same coordinates
+// =============================================================================
+
+typedef struct {
+  matgen_index_t row;
+  matgen_index_t col;
+  matgen_value_t value;
+  size_t count;  // For averaging collision policy
+} hash_entry_t;
+
+typedef struct {
+  hash_entry_t* entries;
+  size_t capacity;
+  size_t size;
+} hash_table_t;
+
+static size_t hash_coord(matgen_index_t row, matgen_index_t col,
+                         size_t capacity) {
+  // Simple hash function
+  return ((size_t)row * 73856093 + (size_t)col * 19349663) % capacity;
+}
+
+static hash_table_t* hash_table_create(size_t capacity) {
+  hash_table_t* table = malloc(sizeof(hash_table_t));
+  table->entries = calloc(capacity, sizeof(hash_entry_t));
+  table->capacity = capacity;
+  table->size = 0;
+
+  // Initialize with invalid row indices
+  for (size_t i = 0; i < capacity; i++) {
+    table->entries[i].row = (matgen_index_t)-1;
+  }
+
+  return table;
+}
+
+static void hash_table_destroy(hash_table_t* table) {
+  free(table->entries);
+  free(table);
+}
+
+static void hash_table_insert(hash_table_t* table, matgen_index_t row,
+                              matgen_index_t col, matgen_value_t value,
+                              matgen_collision_policy_t policy) {
+  size_t idx = hash_coord(row, col, table->capacity);
+
+  // Linear probing
+  while (table->entries[idx].row != (matgen_index_t)-1) {
+    if (table->entries[idx].row == row && table->entries[idx].col == col) {
+      // Found existing entry - handle collision
+      switch (policy) {
+        case MATGEN_COLLISION_SUM:
+          table->entries[idx].value += value;
+          break;
+        case MATGEN_COLLISION_AVG:
+          table->entries[idx].value += value;
+          table->entries[idx].count++;
+          break;
+        case MATGEN_COLLISION_MAX:
+          if (value > table->entries[idx].value) {
+            table->entries[idx].value = value;
+          }
+          break;
+      }
+      return;
+    }
+    idx = (idx + 1) % table->capacity;
+  }
+
+  // Insert new entry
+  table->entries[idx].row = row;
+  table->entries[idx].col = col;
+  table->entries[idx].value = value;
+  table->entries[idx].count = 1;
+  table->size++;
+}
+
+// =============================================================================
+// Nearest Neighbor Scaling
+// =============================================================================
+
+matgen_error_t matgen_scale_nearest_neighbor(
+    const matgen_csr_matrix_t* source, matgen_index_t new_rows,
+    matgen_index_t new_cols, matgen_collision_policy_t collision_policy,
+    matgen_csr_matrix_t** result) {
+  if (!source || !result) {
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  if (new_rows == 0 || new_cols == 0) {
+    return MATGEN_ERROR_INVALID_ARGUMENT;
+  }
+
+  // Create coordinate mapper
+  matgen_coordinate_mapper_t mapper = matgen_coordinate_mapper_create(
+      source->rows, source->cols, new_rows, new_cols);
+
+  // Create hash table for accumulating entries (estimate size)
+  size_t estimated_capacity =
+      source->nnz * 2;  // Over-allocate to reduce collisions
+  hash_table_t* table = hash_table_create(estimated_capacity);
+
+  // Process each source entry
+  for (matgen_index_t i = 0; i < source->rows; i++) {
+    size_t row_start = source->row_ptr[i];
+    size_t row_end = source->row_ptr[i + 1];
+
+    for (size_t j = row_start; j < row_end; j++) {
+      matgen_index_t src_col = source->col_indices[j];
+      matgen_value_t src_val = source->values[j];
+
+      // Map to target coordinates (nearest neighbor)
+      matgen_index_t dst_row;
+      matgen_index_t dst_col;
+      matgen_map_nearest(&mapper, i, src_col, &dst_row, &dst_col);
+
+      // Insert into hash table
+      hash_table_insert(table, dst_row, dst_col, src_val, collision_policy);
+    }
+  }
+
+  // Convert hash table to COO matrix
+  matgen_coo_matrix_t* coo = matgen_coo_create(new_rows, new_cols, table->size);
+  if (!coo) {
+    hash_table_destroy(table);
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+  for (size_t i = 0; i < table->capacity; i++) {
+    if (table->entries[i].row != (matgen_index_t)-1) {
+      matgen_value_t value = table->entries[i].value;
+
+      // Apply averaging if needed
+      if (collision_policy == MATGEN_COLLISION_AVG &&
+          table->entries[i].count > 1) {
+        value /= (matgen_value_t)table->entries[i].count;
+      }
+
+      matgen_coo_add_entry(coo, table->entries[i].row, table->entries[i].col,
+                           value);
+    }
+  }
+
+  hash_table_destroy(table);
+
+  // Convert COO to CSR
+  *result = matgen_coo_to_csr(coo);
+  if (!(*result)) {
+    matgen_coo_destroy(coo);
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+  matgen_coo_destroy(coo);
+  return MATGEN_SUCCESS;
+}
