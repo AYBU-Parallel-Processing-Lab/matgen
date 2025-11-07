@@ -48,74 +48,227 @@ static matgen_error_t coo_resize(matgen_coo_matrix_t* matrix,
 }
 
 // =============================================================================
-// Sorting Helper Structures and Functions (OPTIMIZED)
+// Optimized Sorting for COO Matrix (In-Place with Index Array)
 // =============================================================================
 
-// Structure to hold COO entry for sorting
+// Structure to hold index and comparison key
 typedef struct {
+  matgen_size_t idx;  // Original index
   matgen_index_t row;
   matgen_index_t col;
-  matgen_value_t value;
-} coo_entry_t;
+} coo_sort_key_t;
 
-// Comparison function for qsort (lexicographic order: row first, then column)
-static int compare_coo_entries(const void* a, const void* b) {
-  const coo_entry_t* entry_a = (const coo_entry_t*)a;
-  const coo_entry_t* entry_b = (const coo_entry_t*)b;
+// Comparison function for index array sorting
+static int compare_coo_keys(const void* a, const void* b) {
+  const coo_sort_key_t* key_a = (const coo_sort_key_t*)a;
+  const coo_sort_key_t* key_b = (const coo_sort_key_t*)b;
 
   // Compare rows first
-  if (entry_a->row < entry_b->row) {
+  if (key_a->row < key_b->row) {
     return -1;
   }
 
-  if (entry_a->row > entry_b->row) {
+  if (key_a->row > key_b->row) {
     return 1;
   }
 
   // Rows equal, compare columns
-  if (entry_a->col < entry_b->col) {
+  if (key_a->col < key_b->col) {
     return -1;
   }
 
-  if (entry_a->col > entry_b->col) {
+  if (key_a->col > key_b->col) {
     return 1;
   }
 
   return 0;
 }
 
-// Fast sorting using stdlib qsort (highly optimized, O(n log n))
-static void sort_coo_stdlib(matgen_coo_matrix_t* matrix) {
+// Apply permutation in-place using cycle-following algorithm
+static void apply_permutation(matgen_index_t* row_indices,
+                              matgen_index_t* col_indices,
+                              matgen_value_t* values,
+                              const coo_sort_key_t* keys, matgen_size_t n) {
+  // Allocate visited array
+  bool* visited = (bool*)calloc(n, sizeof(bool));
+  if (!visited) {
+    MATGEN_LOG_ERROR("Failed to allocate visited array for permutation");
+    return;
+  }
+
+  // Apply permutation using cycle-following
+  for (matgen_size_t i = 0; i < n; i++) {
+    if (visited[i]) {
+      continue;
+    }
+
+    matgen_size_t current = i;
+    matgen_size_t next = keys[current].idx;
+
+    if (next == current) {
+      visited[current] = true;
+      continue;
+    }
+
+    // Save the element being displaced
+    matgen_index_t temp_row = row_indices[current];
+    matgen_index_t temp_col = col_indices[current];
+    matgen_value_t temp_val = values[current];
+
+    // Follow the cycle
+    while (next != i) {
+      row_indices[current] = row_indices[next];
+      col_indices[current] = col_indices[next];
+      values[current] = values[next];
+
+      visited[current] = true;
+      current = next;
+      next = keys[next].idx;
+    }
+
+    // Complete the cycle
+    row_indices[current] = temp_row;
+    col_indices[current] = temp_col;
+    values[current] = temp_val;
+    visited[current] = true;
+  }
+
+  free(visited);
+}
+
+// Fast in-place sorting using index array
+static void sort_coo_inplace(matgen_coo_matrix_t* matrix) {
   if (matrix->nnz <= 1) {
     return;
   }
 
-  // Allocate temporary array of entries
-  coo_entry_t* entries =
-      (coo_entry_t*)malloc(matrix->nnz * sizeof(coo_entry_t));
-  if (!entries) {
-    MATGEN_LOG_ERROR("Failed to allocate memory for sorting");
+  // Allocate index array (much smaller than full entries)
+  coo_sort_key_t* keys =
+      (coo_sort_key_t*)malloc(matrix->nnz * sizeof(coo_sort_key_t));
+  if (!keys) {
+    MATGEN_LOG_ERROR("Failed to allocate sort keys");
     return;
   }
 
-  // Pack parallel arrays into struct array
+  // Build index array
   for (matgen_size_t i = 0; i < matrix->nnz; i++) {
-    entries[i].row = matrix->row_indices[i];
-    entries[i].col = matrix->col_indices[i];
-    entries[i].value = matrix->values[i];
+    keys[i].idx = i;
+    keys[i].row = matrix->row_indices[i];
+    keys[i].col = matrix->col_indices[i];
   }
 
-  // Sort using stdlib qsort (battle-tested, highly optimized)
-  qsort(entries, matrix->nnz, sizeof(coo_entry_t), compare_coo_entries);
+  // Sort the index array
+  qsort(keys, matrix->nnz, sizeof(coo_sort_key_t), compare_coo_keys);
 
-  // Unpack struct array back to parallel arrays
-  for (matgen_size_t i = 0; i < matrix->nnz; i++) {
-    matrix->row_indices[i] = entries[i].row;
-    matrix->col_indices[i] = entries[i].col;
-    matrix->values[i] = entries[i].value;
+  // Apply permutation in-place
+  apply_permutation(matrix->row_indices, matrix->col_indices, matrix->values,
+                    keys, matrix->nnz);
+
+  free(keys);
+}
+
+// =============================================================================
+// Alternative: Radix Sort for Integer Keys (Even Faster for Large Matrices)
+// =============================================================================
+
+#define RADIX_BITS 8
+#define RADIX_BUCKETS (1 << RADIX_BITS)
+#define RADIX_MASK (RADIX_BUCKETS - 1)
+
+// Encode row and column into 64-bit key for radix sort
+static inline uint64_t encode_key(matgen_index_t row, matgen_index_t col) {
+  return ((uint64_t)row << 32) | (uint64_t)col;
+}
+
+// Radix sort implementation (stable, O(n) for fixed key size)
+static void radix_sort_coo(matgen_coo_matrix_t* matrix) {
+  if (matrix->nnz <= 1) {
+    return;
   }
 
-  free(entries);
+  matgen_size_t n = matrix->nnz;
+
+  // Allocate temporary buffers
+  matgen_index_t* temp_rows =
+      (matgen_index_t*)malloc(n * sizeof(matgen_index_t));
+  matgen_index_t* temp_cols =
+      (matgen_index_t*)malloc(n * sizeof(matgen_index_t));
+  matgen_value_t* temp_vals =
+      (matgen_value_t*)malloc(n * sizeof(matgen_value_t));
+  uint64_t* keys = (uint64_t*)malloc(n * sizeof(uint64_t));
+  uint64_t* temp_keys = (uint64_t*)malloc(n * sizeof(uint64_t));
+
+  if (!temp_rows || !temp_cols || !temp_vals || !keys || !temp_keys) {
+    MATGEN_LOG_ERROR("Failed to allocate temporary buffers for radix sort");
+    free(temp_rows);
+    free(temp_cols);
+    free(temp_vals);
+    free(keys);
+    free(temp_keys);
+    return;
+  }
+
+  // Encode keys
+  for (matgen_size_t i = 0; i < n; i++) {
+    keys[i] = encode_key(matrix->row_indices[i], matrix->col_indices[i]);
+  }
+
+  // Radix sort (process 8 bits at a time)
+  matgen_size_t count[RADIX_BUCKETS];
+
+  for (int shift = 0; shift < 64; shift += RADIX_BITS) {
+    // Clear counts
+    for (int i = 0; i < RADIX_BUCKETS; i++) {
+      count[i] = 0;
+    }
+
+    // Count occurrences
+    for (matgen_size_t i = 0; i < n; i++) {
+      int bucket = (int)(keys[i] >> shift) & RADIX_MASK;
+      count[bucket]++;
+    }
+
+    // Compute prefix sum
+    for (int i = 1; i < RADIX_BUCKETS; i++) {
+      count[i] += count[i - 1];
+    }
+
+    // Distribute elements (backwards for stability)
+    for (matgen_size_t i = n; i > 0; i--) {
+      matgen_size_t idx = i - 1;
+      int bucket = (int)(keys[idx] >> shift) & RADIX_MASK;
+      matgen_size_t dest = --count[bucket];
+
+      temp_keys[dest] = keys[idx];
+      temp_rows[dest] = matrix->row_indices[idx];
+      temp_cols[dest] = matrix->col_indices[idx];
+      temp_vals[dest] = matrix->values[idx];
+    }
+
+    // Swap buffers
+    uint64_t* swap_keys = keys;
+    keys = temp_keys;
+    temp_keys = swap_keys;
+
+    matgen_index_t* swap_rows = matrix->row_indices;
+    matrix->row_indices = temp_rows;
+    temp_rows = swap_rows;
+
+    matgen_index_t* swap_cols = matrix->col_indices;
+    matrix->col_indices = temp_cols;
+    temp_cols = swap_cols;
+
+    matgen_value_t* swap_vals = matrix->values;
+    matrix->values = temp_vals;
+    temp_vals = swap_vals;
+  }
+
+  // Free temporary buffers
+  free(temp_rows);
+  free(temp_cols);
+  free(temp_vals);
+  free(keys);
+  free(temp_keys);
 }
 
 // =============================================================================
@@ -238,11 +391,18 @@ matgen_error_t matgen_coo_sort(matgen_coo_matrix_t* matrix) {
     return MATGEN_SUCCESS;
   }
 
-  MATGEN_LOG_DEBUG("Sorting COO matrix with %zu entries using stdlib qsort",
-                   matrix->nnz);
+  MATGEN_LOG_DEBUG("Sorting COO matrix with %zu entries", matrix->nnz);
 
-  // Use standard library qsort (highly optimized)
-  sort_coo_stdlib(matrix);
+  // Choose sorting algorithm based on matrix size
+  // Radix sort is O(n) but has overhead; quicksort is O(n log n)
+  // Crossover point is typically around 100K-1M entries
+  if (matrix->nnz > 100000) {
+    MATGEN_LOG_DEBUG("Using radix sort for large matrix");
+    radix_sort_coo(matrix);
+  } else {
+    MATGEN_LOG_DEBUG("Using index-based quicksort for small/medium matrix");
+    sort_coo_inplace(matrix);
+  }
 
   matrix->is_sorted = true;
 

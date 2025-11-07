@@ -6,6 +6,7 @@
 #include "matgen/algorithms/scaling/scaling_types.h"
 #include "matgen/core/conversion.h"
 #include "matgen/core/coo_matrix.h"
+#include "matgen/utils/log.h"
 
 // =============================================================================
 // Helper: Accumulator using hash table
@@ -68,7 +69,7 @@ static void accumulator_add(accumulator_t* acc, matgen_index_t row,
 }
 
 // =============================================================================
-// Bilinear Interpolation Scaling
+// Bilinear Interpolation Scaling with Value Conservation
 // =============================================================================
 
 matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
@@ -83,53 +84,83 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
     return MATGEN_ERROR_INVALID_ARGUMENT;
   }
 
-  // Create coordinate mapper
-  matgen_coordinate_mapper_t mapper = matgen_coordinate_mapper_create(
-      source->rows, source->cols, new_rows, new_cols);
+  // Calculate scale factors
+  matgen_value_t row_scale =
+      (matgen_value_t)new_rows / (matgen_value_t)source->rows;
+  matgen_value_t col_scale =
+      (matgen_value_t)new_cols / (matgen_value_t)source->cols;
 
-  // Create accumulator (bilinear can create up to 4x entries)
-  size_t estimated_capacity = source->nnz * 8;
+  MATGEN_LOG_DEBUG(
+      "Bilinear scaling: %llu×%llu -> %llu×%llu (scale: %.3fx%.3f)",
+      (unsigned long long)source->rows, (unsigned long long)source->cols,
+      (unsigned long long)new_rows, (unsigned long long)new_cols, row_scale,
+      col_scale);
+
+  // Estimate capacity
+  size_t estimated_nnz =
+      (size_t)((double)source->nnz * row_scale * col_scale * 1.5);
+  size_t estimated_capacity = estimated_nnz * 2;
+
+  MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz);
+
   accumulator_t* acc = accumulator_create(estimated_capacity);
 
   // Process each source entry
-  for (matgen_index_t i = 0; i < source->rows; i++) {
-    size_t row_start = source->row_ptr[i];
-    size_t row_end = source->row_ptr[i + 1];
+  for (matgen_index_t src_row = 0; src_row < source->rows; src_row++) {
+    size_t row_start = source->row_ptr[src_row];
+    size_t row_end = source->row_ptr[src_row + 1];
 
-    for (size_t j = row_start; j < row_end; j++) {
-      matgen_index_t src_col = source->col_indices[j];
-      matgen_value_t src_val = source->values[j];
+    for (size_t idx = row_start; idx < row_end; idx++) {
+      matgen_index_t src_col = source->col_indices[idx];
+      matgen_value_t src_val = source->values[idx];
 
-      // Map to fractional target coordinates
-      matgen_fractional_coord_t coord =
-          matgen_map_fractional(&mapper, i, src_col);
+      // Calculate the block this source entry maps to in target space
+      matgen_index_t dst_row_start =
+          (matgen_index_t)((double)src_row * row_scale);
+      matgen_index_t dst_row_end =
+          (matgen_index_t)((double)(src_row + 1) * row_scale);
+      matgen_index_t dst_col_start =
+          (matgen_index_t)((double)src_col * col_scale);
+      matgen_index_t dst_col_end =
+          (matgen_index_t)((double)(src_col + 1) * col_scale);
 
-      // Compute bilinear weights
-      matgen_value_t w_row = coord.row - (matgen_value_t)coord.row_floor;
-      matgen_value_t w_col = coord.col - (matgen_value_t)coord.col_floor;
-
-      // Distribute value to 4 neighbors
-      matgen_value_t w00 = (1.0 - w_row) * (1.0 - w_col);
-      matgen_value_t w01 = (1.0 - w_row) * w_col;
-      matgen_value_t w10 = w_row * (1.0 - w_col);
-      matgen_value_t w11 = w_row * w_col;
-
-      // Add contributions (only if weight is significant)
-      if (w00 > 1e-10) {
-        accumulator_add(acc, coord.row_floor, coord.col_floor, src_val * w00);
+      // Clamp to valid range
+      if (dst_row_end > new_rows) {
+        dst_row_end = new_rows;
       }
-      if (w01 > 1e-10 && coord.col_ceil != coord.col_floor) {
-        accumulator_add(acc, coord.row_floor, coord.col_ceil, src_val * w01);
+
+      if (dst_col_end > new_cols) {
+        dst_col_end = new_cols;
       }
-      if (w10 > 1e-10 && coord.row_ceil != coord.row_floor) {
-        accumulator_add(acc, coord.row_ceil, coord.col_floor, src_val * w10);
+
+      // Calculate block size
+      matgen_index_t block_rows = dst_row_end - dst_row_start;
+      matgen_index_t block_cols = dst_col_end - dst_col_start;
+      matgen_size_t block_size =
+          (matgen_size_t)block_rows * (matgen_size_t)block_cols;
+
+      // If block is empty, skip
+      if (block_size == 0) {
+        continue;
       }
-      if (w11 > 1e-10 && coord.row_ceil != coord.row_floor &&
-          coord.col_ceil != coord.col_floor) {
-        accumulator_add(acc, coord.row_ceil, coord.col_ceil, src_val * w11);
+
+      // Value per cell to conserve total value
+      // Each cell in the block gets an equal share
+      matgen_value_t value_per_cell = src_val / (matgen_value_t)block_size;
+
+      // Distribute value uniformly across the block
+      for (matgen_index_t dst_row = dst_row_start; dst_row < dst_row_end;
+           dst_row++) {
+        for (matgen_index_t dst_col = dst_col_start; dst_col < dst_col_end;
+             dst_col++) {
+          accumulator_add(acc, dst_row, dst_col, value_per_cell);
+        }
       }
     }
   }
+
+  MATGEN_LOG_DEBUG("Accumulated %zu entries (estimated %zu)", acc->size,
+                   estimated_nnz);
 
   // Convert accumulator to COO matrix
   matgen_coo_matrix_t* coo = matgen_coo_create(new_rows, new_cols, acc->size);
@@ -155,5 +186,9 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
   }
 
   matgen_coo_destroy(coo);
+
+  MATGEN_LOG_DEBUG("Bilinear scaling completed: output NNZ = %zu",
+                   (*result)->nnz);
+
   return MATGEN_SUCCESS;
 }
