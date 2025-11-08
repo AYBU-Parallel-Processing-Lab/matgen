@@ -2,10 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cmath>
-#include <unordered_set>
-#include <vector>
-
 // =============================================================================
 // Basic Creation and Destruction Tests
 // =============================================================================
