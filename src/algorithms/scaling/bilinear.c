@@ -150,7 +150,8 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
         matgen_index_t dst_row = dst_row_start + dr;
         matgen_value_t dst_center_row =
             (matgen_value_t)dst_row + (matgen_value_t)0.5;
-        matgen_value_t row_dist = fabs(dst_center_row - src_center_row);
+        matgen_value_t row_dist =
+            (matgen_value_t)fabs(dst_center_row - src_center_row);
         matgen_value_t row_weight =
             (matgen_value_t)1.0 - (row_dist / row_norm_factor);
         row_weight =
@@ -160,7 +161,8 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
           matgen_index_t dst_col = dst_col_start + dc;
           matgen_value_t dst_center_col =
               (matgen_value_t)dst_col + (matgen_value_t)0.5;
-          matgen_value_t col_dist = fabs(dst_center_col - src_center_col);
+          matgen_value_t col_dist =
+              (matgen_value_t)fabs(dst_center_col - src_center_col);
           matgen_value_t col_weight =
               (matgen_value_t)1.0 - (col_dist / col_norm_factor);
           col_weight = MATGEN_CLAMP(col_weight, (matgen_value_t)0.0,

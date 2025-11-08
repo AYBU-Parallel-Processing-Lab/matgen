@@ -57,7 +57,7 @@ typedef u64 matgen_index_t;
  * Currently using matgen_value_t precision (f64).
  * Change to f32 for single precision, or make it templated.
  */
-typedef f64 matgen_value_t;
+typedef f32 matgen_value_t;
 
 /**
  * @brief Size type for counts (nnz, capacity, etc.)

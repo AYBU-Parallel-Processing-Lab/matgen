@@ -196,11 +196,11 @@ void matgen_csr_print_info(const matgen_csr_matrix_t* matrix, FILE* stream) {
     return;
   }
 
-  matgen_value_t sparsity = 0.0;
+  matgen_value_t sparsity = (matgen_value_t)0.0;
   if (matrix->rows > 0 && matrix->cols > 0) {
     u64 total_elements = (u64)matrix->rows * (u64)matrix->cols;
-    sparsity =
-        (100.0 * (matgen_value_t)matrix->nnz) / (matgen_value_t)total_elements;
+    sparsity = ((matgen_value_t)100.0 * (matgen_value_t)matrix->nnz) /
+               (matgen_value_t)total_elements;
   }
 
   fprintf(stream, "CSR Matrix Information:\n");

@@ -238,7 +238,8 @@ matgen_coo_matrix_t* matgen_mtx_read(const char* filename,
     matgen_index_t col = (matgen_index_t)(col_1based - 1);
 
     // Add entry
-    if (matgen_coo_add_entry(matrix, row, col, value) != MATGEN_SUCCESS) {
+    if (matgen_coo_add_entry(matrix, row, col, (matgen_value_t)value) !=
+        MATGEN_SUCCESS) {
       MATGEN_LOG_ERROR("Failed to add entry (%llu, %llu)",
                        (unsigned long long)row, (unsigned long long)col);
       matgen_coo_destroy(matrix);
@@ -255,7 +256,8 @@ matgen_coo_matrix_t* matgen_mtx_read(const char* filename,
 
       // Its correct to add the transpose entry here
       // NOLINTNEXTLINE(readability-suspicious-call-argument)
-      if (matgen_coo_add_entry(matrix, col, row, transpose_value) !=
+      if (matgen_coo_add_entry(matrix, col, row,
+                               (matgen_value_t)transpose_value) !=
           MATGEN_SUCCESS) {
         MATGEN_LOG_ERROR("Failed to add transpose entry");
         matgen_coo_destroy(matrix);
