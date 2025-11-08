@@ -9,6 +9,10 @@
 #include "matgen/utils/accumulator.h"
 #include "matgen/utils/log.h"
 
+// Threshold for using stack vs heap allocation for weights
+// For blocks larger than this, we use heap allocation
+#define MATGEN_BILINEAR_STACK_THRESHOLD 64
+
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
                                      matgen_index_t new_rows,
@@ -47,6 +51,11 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
     MATGEN_LOG_ERROR("Failed to create accumulator");
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
+
+  // Stack-allocated weight buffer for small blocks
+  double stack_weights[MATGEN_BILINEAR_STACK_THRESHOLD];
+  double* heap_weights = NULL;
+  double* weights = NULL;
 
   // Process each source entry
   matgen_error_t err = MATGEN_SUCCESS;
@@ -96,79 +105,75 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
             matgen_accumulator_add(acc, dst_row_start, dst_col_start, src_val);
         if (err != MATGEN_SUCCESS) {
           MATGEN_LOG_ERROR("Failed to add entry to accumulator");
-          matgen_accumulator_destroy(acc);
-          return err;
+          goto cleanup;
         }
         continue;
+      }
+
+      // Allocate weight buffer based on block size
+      if (block_size <= MATGEN_BILINEAR_STACK_THRESHOLD) {
+        weights = stack_weights;
+      } else {
+        // Need heap allocation for large blocks
+        // Reallocate only if current heap buffer is too small
+        if (!heap_weights || block_size > MATGEN_BILINEAR_STACK_THRESHOLD) {
+          free(heap_weights);
+          heap_weights = (double*)malloc(block_size * sizeof(double));
+          if (!heap_weights) {
+            MATGEN_LOG_ERROR(
+                "Failed to allocate weight buffer for block size %zu",
+                block_size);
+            err = MATGEN_ERROR_OUT_OF_MEMORY;
+            goto cleanup;
+          }
+        }
+        weights = heap_weights;
       }
 
       // Calculate source cell center in target space
       double src_center_row = ((double)src_row + 0.5) * row_scale;
       double src_center_col = ((double)src_col + 0.5) * col_scale;
 
-      // Calculate bilinear weights for each cell in the block
+      // Pre-calculate normalization factors for bilinear weights
+      double row_norm_factor = (double)block_rows / 2.0;
+      double col_norm_factor = (double)block_cols / 2.0;
+
+      // Single pass: calculate and store all weights
       double total_weight = 0.0;
+      size_t weight_idx = 0;
 
-      // First pass: calculate all weights
       for (matgen_index_t dr = 0; dr < block_rows; dr++) {
+        matgen_index_t dst_row = dst_row_start + dr;
+        double dst_center_row = (double)dst_row + 0.5;
+        double row_dist = fabs(dst_center_row - src_center_row);
+        double row_weight = 1.0 - (row_dist / row_norm_factor);
+
+        // Clamp to [0, 1]
+        row_weight = MATGEN_CLAMP(row_weight, 0.0, 1.0);
+
         for (matgen_index_t dc = 0; dc < block_cols; dc++) {
-          matgen_index_t dst_row = dst_row_start + dr;
           matgen_index_t dst_col = dst_col_start + dc;
-
-          // Target cell center
-          double dst_center_row = (double)dst_row + 0.5;
           double dst_center_col = (double)dst_col + 0.5;
-
-          // Calculate bilinear weight based on distance
-          double row_dist = fabs(dst_center_row - src_center_row);
           double col_dist = fabs(dst_center_col - src_center_col);
-
-          // Bilinear weight: (1 - normalized_row_dist) * (1 -
-          // normalized_col_dist) Normalize by half block size so edges get zero
-          // weight
-          double row_weight = 1.0 - (row_dist / ((double)block_rows / 2.0));
-          double col_weight = 1.0 - (col_dist / ((double)block_cols / 2.0));
+          double col_weight = 1.0 - (col_dist / col_norm_factor);
 
           // Clamp to [0, 1]
-          if (row_weight < 0.0) {
-            row_weight = 0.0;
-          }
-
-          if (col_weight < 0.0) {
-            col_weight = 0.0;
-          }
+          col_weight = MATGEN_CLAMP(col_weight, 0.0, 1.0);
 
           double weight = row_weight * col_weight;
+          weights[weight_idx++] = weight;
           total_weight += weight;
         }
       }
 
-      // Second pass: normalize and distribute
+      // Second pass: normalize and distribute using cached weights
+      weight_idx = 0;
       for (matgen_index_t dr = 0; dr < block_rows; dr++) {
+        matgen_index_t dst_row = dst_row_start + dr;
         for (matgen_index_t dc = 0; dc < block_cols; dc++) {
-          matgen_index_t dst_row = dst_row_start + dr;
           matgen_index_t dst_col = dst_col_start + dc;
 
-          // Target cell center
-          double dst_center_row = (double)dst_row + 0.5;
-          double dst_center_col = (double)dst_col + 0.5;
-
-          // Calculate bilinear weight
-          double row_dist = fabs(dst_center_row - src_center_row);
-          double col_dist = fabs(dst_center_col - src_center_col);
-
-          double row_weight = 1.0 - (row_dist / ((double)block_rows / 2.0));
-          double col_weight = 1.0 - (col_dist / ((double)block_cols / 2.0));
-
-          if (row_weight < 0.0) {
-            row_weight = 0.0;
-          }
-
-          if (col_weight < 0.0) {
-            col_weight = 0.0;
-          }
-
-          double weight = row_weight * col_weight;
+          double weight = weights[weight_idx++];
 
           // Normalize and distribute
           if (weight > 0.0) {
@@ -176,8 +181,7 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
             err = matgen_accumulator_add(acc, dst_row, dst_col, weighted_val);
             if (err != MATGEN_SUCCESS) {
               MATGEN_LOG_ERROR("Failed to add entry to accumulator");
-              matgen_accumulator_destroy(acc);
-              return err;
+              goto cleanup;
             }
           }
         }
@@ -192,11 +196,11 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
                    final_size, estimated_nnz, load_factor);
 
   matgen_coo_matrix_t* coo = matgen_accumulator_to_coo(acc, new_rows, new_cols);
-  matgen_accumulator_destroy(acc);
 
   if (!coo) {
     MATGEN_LOG_ERROR("Failed to convert accumulator to COO matrix");
-    return MATGEN_ERROR_OUT_OF_MEMORY;
+    err = MATGEN_ERROR_OUT_OF_MEMORY;
+    goto cleanup;
   }
 
   *result = matgen_coo_to_csr(coo);
@@ -204,11 +208,16 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
 
   if (!(*result)) {
     MATGEN_LOG_ERROR("Failed to convert COO to CSR matrix");
-    return MATGEN_ERROR_OUT_OF_MEMORY;
+    err = MATGEN_ERROR_OUT_OF_MEMORY;
+    goto cleanup;
   }
 
   MATGEN_LOG_DEBUG("Bilinear scaling completed: output NNZ = %zu",
                    (*result)->nnz);
 
-  return MATGEN_SUCCESS;
+cleanup:
+  free(heap_weights);
+  matgen_accumulator_destroy(acc);
+
+  return err;
 }
