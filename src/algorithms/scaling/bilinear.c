@@ -5,6 +5,7 @@
 
 #include "matgen/core/conversion.h"
 #include "matgen/core/coo_matrix.h"
+#include "matgen/core/types.h"
 #include "matgen/utils/accumulator.h"
 #include "matgen/utils/log.h"
 
@@ -23,7 +24,6 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
 
   *result = NULL;
 
-  // Calculate scale factors using double precision
   double row_scale = (double)new_rows / (double)source->rows;
   double col_scale = (double)new_cols / (double)source->cols;
 
@@ -33,13 +33,14 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
       (unsigned long long)new_rows, (unsigned long long)new_cols, row_scale,
       col_scale);
 
-  // Bilinear creates up to 4 neighbors per source entry
-  // Estimate conservatively
-  size_t estimated_nnz = (size_t)((double)source->nnz * 4.0 * 1.5);
+  // For upscaling, each source cell spreads to ~scale² target cells
+  // For downscaling, multiple source cells contribute to each target
+  double avg_contributions_per_source = fmax(1.0, row_scale * col_scale);
+  size_t estimated_nnz =
+      (size_t)((double)source->nnz * avg_contributions_per_source * 1.2);
 
   MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz);
 
-  // Create accumulator with SUM policy (bilinear weights are summed)
   matgen_accumulator_t* acc =
       matgen_accumulator_create(estimated_nnz, MATGEN_COLLISION_SUM);
   if (!acc) {
@@ -62,120 +63,123 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
         continue;
       }
 
-      // Calculate continuous target position (center of source cell)
-      // Source cell [src_row, src_row+1) maps to target range
-      double src_row_center = (double)src_row + 0.5;
-      double src_col_center = (double)src_col + 0.5;
-
-      // Map to target space
-      double dst_row_float = src_row_center * row_scale;
-      double dst_col_float = src_col_center * col_scale;
-
-      // Find the 4 surrounding target cells
-      // We want the cells whose centers surround our mapped point
-      matgen_index_t row0 = (matgen_index_t)floor(dst_row_float - 0.5);
-      matgen_index_t row1 = row0 + 1;
-      matgen_index_t col0 = (matgen_index_t)floor(dst_col_float - 0.5);
-      matgen_index_t col1 = col0 + 1;
+      // Calculate target block boundaries (same as nearest neighbor)
+      matgen_index_t dst_row_start =
+          (matgen_index_t)((double)src_row * row_scale);
+      matgen_index_t dst_row_end =
+          (matgen_index_t)((double)(src_row + 1) * row_scale);
+      matgen_index_t dst_col_start =
+          (matgen_index_t)((double)src_col * col_scale);
+      matgen_index_t dst_col_end =
+          (matgen_index_t)((double)(src_col + 1) * col_scale);
 
       // Clamp to valid range
-      if (row0 >= new_rows) {
-        row0 = new_rows - 1;
+      dst_row_end = MATGEN_CLAMP(dst_row_end, 0, new_rows);
+      dst_col_end = MATGEN_CLAMP(dst_col_end, 0, new_cols);
+
+      // Ensure at least one cell per block
+      if (dst_row_end <= dst_row_start) {
+        dst_row_end = dst_row_start + 1;
+      }
+      if (dst_col_end <= dst_col_start) {
+        dst_col_end = dst_col_start + 1;
       }
 
-      if (row1 >= new_rows) {
-        row1 = new_rows - 1;
-      }
+      matgen_index_t block_rows = dst_row_end - dst_row_start;
+      matgen_index_t block_cols = dst_col_end - dst_col_start;
+      matgen_size_t block_size =
+          (matgen_size_t)block_rows * (matgen_size_t)block_cols;
 
-      if (col0 >= new_cols) {
-        col0 = new_cols - 1;
-      }
-
-      if (col1 >= new_cols) {
-        col1 = new_cols - 1;
-      }
-
-      // Calculate fractional distances within the cell
-      // Distance from row0's center to our point
-      double row0_center = (double)row0 + 0.5;
-      double col0_center = (double)col0 + 0.5;
-
-      double row_frac = (dst_row_float - row0_center);
-      double col_frac = (dst_col_float - col0_center);
-
-      // Clamp fractions to [0, 1] range
-      if (row_frac < 0.0) {
-        row_frac = 0.0;
-      }
-
-      if (row_frac > 1.0) {
-        row_frac = 1.0;
-      }
-
-      if (col_frac < 0.0) {
-        col_frac = 0.0;
-      }
-
-      if (col_frac > 1.0) {
-        col_frac = 1.0;
-      }
-
-      // Calculate bilinear interpolation weights
-      // Weight decreases with distance from the point
-      double w00 = (1.0 - row_frac) * (1.0 - col_frac);  // Top-left
-      double w01 = (1.0 - row_frac) * col_frac;          // Top-right
-      double w10 = row_frac * (1.0 - col_frac);          // Bottom-left
-      double w11 = row_frac * col_frac;                  // Bottom-right
-
-      // Normalize weights to conserve value (should sum to ~1.0, but ensure it)
-      double weight_sum = w00 + w01 + w10 + w11;
-      if (weight_sum > 1e-10) {
-        w00 /= weight_sum;
-        w01 /= weight_sum;
-        w10 /= weight_sum;
-        w11 /= weight_sum;
-      } else {
-        // Degenerate case: distribute equally
-        w00 = w01 = w10 = w11 = 0.25;
-      }
-
-      // Distribute value to 4 neighbors with bilinear weights
-      // Only add non-negligible contributions
-      const double epsilon = 1e-12;
-
-      if (w00 > epsilon) {
-        err = matgen_accumulator_add(acc, row0, col0, src_val * w00);
+      // For 1x1 blocks, just use the original value
+      if (block_size == 1) {
+        err =
+            matgen_accumulator_add(acc, dst_row_start, dst_col_start, src_val);
         if (err != MATGEN_SUCCESS) {
           MATGEN_LOG_ERROR("Failed to add entry to accumulator");
           matgen_accumulator_destroy(acc);
           return err;
         }
+        continue;
       }
 
-      if (w01 > epsilon && col1 != col0) {
-        err = matgen_accumulator_add(acc, row0, col1, src_val * w01);
-        if (err != MATGEN_SUCCESS) {
-          MATGEN_LOG_ERROR("Failed to add entry to accumulator");
-          matgen_accumulator_destroy(acc);
-          return err;
+      // Calculate source cell center in target space
+      double src_center_row = ((double)src_row + 0.5) * row_scale;
+      double src_center_col = ((double)src_col + 0.5) * col_scale;
+
+      // Calculate bilinear weights for each cell in the block
+      double total_weight = 0.0;
+
+      // First pass: calculate all weights
+      for (matgen_index_t dr = 0; dr < block_rows; dr++) {
+        for (matgen_index_t dc = 0; dc < block_cols; dc++) {
+          matgen_index_t dst_row = dst_row_start + dr;
+          matgen_index_t dst_col = dst_col_start + dc;
+
+          // Target cell center
+          double dst_center_row = (double)dst_row + 0.5;
+          double dst_center_col = (double)dst_col + 0.5;
+
+          // Calculate bilinear weight based on distance
+          double row_dist = fabs(dst_center_row - src_center_row);
+          double col_dist = fabs(dst_center_col - src_center_col);
+
+          // Bilinear weight: (1 - normalized_row_dist) * (1 -
+          // normalized_col_dist) Normalize by half block size so edges get zero
+          // weight
+          double row_weight = 1.0 - (row_dist / ((double)block_rows / 2.0));
+          double col_weight = 1.0 - (col_dist / ((double)block_cols / 2.0));
+
+          // Clamp to [0, 1]
+          if (row_weight < 0.0) {
+            row_weight = 0.0;
+          }
+
+          if (col_weight < 0.0) {
+            col_weight = 0.0;
+          }
+
+          double weight = row_weight * col_weight;
+          total_weight += weight;
         }
       }
 
-      if (w10 > epsilon && row1 != row0) {
-        err = matgen_accumulator_add(acc, row1, col0, src_val * w10);
-        if (err != MATGEN_SUCCESS) {
-          MATGEN_LOG_ERROR("Failed to add entry to accumulator");
-          matgen_accumulator_destroy(acc);
-          return err;
-        }
-      }
+      // Second pass: normalize and distribute
+      for (matgen_index_t dr = 0; dr < block_rows; dr++) {
+        for (matgen_index_t dc = 0; dc < block_cols; dc++) {
+          matgen_index_t dst_row = dst_row_start + dr;
+          matgen_index_t dst_col = dst_col_start + dc;
 
-      if (w11 > epsilon && row1 != row0 && col1 != col0) {
-        err = matgen_accumulator_add(acc, row1, col1, src_val * w11);
-        if (err != MATGEN_SUCCESS) {
-          MATGEN_LOG_ERROR("Failed to add entry to accumulator");
-          matgen_accumulator_destroy(acc);
-          return err;
+          // Target cell center
+          double dst_center_row = (double)dst_row + 0.5;
+          double dst_center_col = (double)dst_col + 0.5;
+
+          // Calculate bilinear weight
+          double row_dist = fabs(dst_center_row - src_center_row);
+          double col_dist = fabs(dst_center_col - src_center_col);
+
+          double row_weight = 1.0 - (row_dist / ((double)block_rows / 2.0));
+          double col_weight = 1.0 - (col_dist / ((double)block_cols / 2.0));
+
+          if (row_weight < 0.0) {
+            row_weight = 0.0;
+          }
+
+          if (col_weight < 0.0) {
+            col_weight = 0.0;
+          }
+
+          double weight = row_weight * col_weight;
+
+          // Normalize and distribute
+          if (weight > 0.0) {
+            matgen_value_t weighted_val = src_val * (weight / total_weight);
+            err = matgen_accumulator_add(acc, dst_row, dst_col, weighted_val);
+            if (err != MATGEN_SUCCESS) {
+              MATGEN_LOG_ERROR("Failed to add entry to accumulator");
+              matgen_accumulator_destroy(acc);
+              return err;
+            }
+          }
         }
       }
     }
@@ -187,7 +191,6 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
   MATGEN_LOG_DEBUG("Accumulated %zu entries (estimated %zu, load factor: %.2f)",
                    final_size, estimated_nnz, load_factor);
 
-  // Convert accumulator to COO matrix
   matgen_coo_matrix_t* coo = matgen_accumulator_to_coo(acc, new_rows, new_cols);
   matgen_accumulator_destroy(acc);
 
@@ -196,7 +199,6 @@ matgen_error_t matgen_scale_bilinear(const matgen_csr_matrix_t* source,
     return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
-  // Convert COO to CSR
   *result = matgen_coo_to_csr(coo);
   matgen_coo_destroy(coo);
 

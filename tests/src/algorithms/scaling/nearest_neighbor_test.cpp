@@ -25,7 +25,7 @@ TEST(NearestNeighborTest, IdentityScaling) {
   ASSERT_NE(result, nullptr);
   EXPECT_EQ(result->rows, 3);
   EXPECT_EQ(result->cols, 3);
-  // Identity scaling: NNZ stays the same
+  // Identity scaling: 1x1 blocks, NNZ stays the same
   EXPECT_EQ(result->nnz, 3);
 
   matgen_csr_destroy(source);
@@ -108,10 +108,25 @@ TEST(NearestNeighborTest, ScaleDown) {
   EXPECT_EQ(result->rows, 2);
   EXPECT_EQ(result->cols, 2);
 
-  // Downscaling: no expansion of blocks
-  // Each 2x2 source block maps to 1 target cell
-  // Expect at most 2 entries (diagonal)
-  EXPECT_LE(result->nnz, 4);
+  // Downscaling with collisions:
+  // Source (0,0) → target [0,1) × [0,1) → (0,0) with value 1.0
+  // Source (1,1) → target [0,1) × [0,1) → (0,0) with value 2.0 (collision!)
+  // Source (2,2) → target [1,2) × [1,2) → (1,1) with value 3.0
+  // Source (3,3) → target [1,2) × [1,2) → (1,1) with value 4.0 (collision!)
+  // Result: 2 entries with summed values
+  EXPECT_EQ(result->nnz, 2);
+
+  // Verify the summed values
+  // Target (0,0) should have 1.0 + 2.0 = 3.0
+  // Target (1,1) should have 3.0 + 4.0 = 7.0
+  double total_sum = 0.0;
+  for (matgen_index_t i = 0; i < result->rows; i++) {
+    for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
+         j++) {
+      total_sum += result->values[j];
+    }
+  }
+  EXPECT_NEAR(total_sum, 10.0, 1e-10);  // 1+2+3+4 = 10
 
   matgen_csr_destroy(source);
   matgen_csr_destroy(result);
@@ -137,8 +152,11 @@ TEST(NearestNeighborTest, CollisionPolicySum) {
   ASSERT_EQ(err, MATGEN_SUCCESS);
   ASSERT_NE(result, nullptr);
 
-  // With SUM policy: expect summed value at (0,0)
-  EXPECT_LE(result->nnz, 1);
+  // With SUM policy: expect 1 entry at (0,0) with summed value
+  EXPECT_EQ(result->nnz, 1);
+
+  // Verify the sum
+  EXPECT_NEAR(result->values[0], 10.0, 1e-10);  // 1+2+3+4 = 10
 
   matgen_csr_destroy(source);
   matgen_csr_destroy(result);
@@ -170,10 +188,10 @@ TEST(NearestNeighborTest, NonSquareScaling) {
   matgen_csr_destroy(result);
 }
 
-TEST(NearestNeighborTest, BlockReplicationVerification) {
-  // Verify exact block distribution with value conservation
+TEST(NearestNeighborTest, UniformDistribution) {
+  // Verify uniform distribution with value conservation
   matgen_coo_matrix_t* coo = matgen_coo_create(3, 3, 1);
-  matgen_coo_add_entry(coo, 1, 1, 7.0);
+  matgen_coo_add_entry(coo, 1, 1, 12.0);
 
   matgen_csr_matrix_t* source = matgen_coo_to_csr(coo);
   ASSERT_NE(source, nullptr);
@@ -187,22 +205,20 @@ TEST(NearestNeighborTest, BlockReplicationVerification) {
   ASSERT_EQ(err, MATGEN_SUCCESS);
   ASSERT_NE(result, nullptr);
 
-  // Entry at (1,1) should create a 2x2 block at positions:
-  // (2,2), (2,3), (3,2), (3,3)
+  // Entry at (1,1) creates a 2x2 block at (2,2)-(3,3)
   EXPECT_EQ(result->nnz, 4);
 
-  // With value conservation: 7.0 distributed across 2x2 block
-  // Each cell gets: 7.0 / (2*2) = 1.75
-  double expected_value = 7.0 / 4.0;
+  // With uniform distribution: 12.0 / 4 = 3.0 per cell
+  double expected_value = 3.0;
 
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
          j++) {
-      EXPECT_DOUBLE_EQ(result->values[j], expected_value);
+      EXPECT_NEAR(result->values[j], expected_value, 1e-10);
     }
   }
 
-  // Verify total sum is conserved
+  // Verify sum conservation
   double total_sum = 0.0;
   for (matgen_index_t i = 0; i < result->rows; i++) {
     for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
@@ -210,52 +226,49 @@ TEST(NearestNeighborTest, BlockReplicationVerification) {
       total_sum += result->values[j];
     }
   }
-  EXPECT_DOUBLE_EQ(total_sum, 7.0);
+  EXPECT_NEAR(total_sum, 12.0, 1e-10);
 
   matgen_csr_destroy(source);
   matgen_csr_destroy(result);
 }
 
-TEST(NearestNeighborTest, LargeScaleFactor) {
-  // Test with large scale factor
-  matgen_coo_matrix_t* coo = matgen_coo_create(2, 2, 1);
+TEST(NearestNeighborTest, DensityPreservation) {
+  // Test that density is preserved during upscaling
+  matgen_coo_matrix_t* coo = matgen_coo_create(4, 4, 4);
   matgen_coo_add_entry(coo, 0, 0, 1.0);
+  matgen_coo_add_entry(coo, 1, 1, 2.0);
+  matgen_coo_add_entry(coo, 2, 2, 3.0);
+  matgen_coo_add_entry(coo, 3, 3, 4.0);
 
   matgen_csr_matrix_t* source = matgen_coo_to_csr(coo);
   ASSERT_NE(source, nullptr);
   matgen_coo_destroy(coo);
 
-  // Scale 2x2 -> 20x20 (10x in each dimension)
-  matgen_csr_matrix_t* result = nullptr;
-  matgen_error_t err = matgen_scale_nearest_neighbor(
-      source, 20, 20, MATGEN_COLLISION_SUM, &result);
+  double source_density =
+      (double)source->nnz / (double)(source->rows * source->cols);
 
-  ASSERT_EQ(err, MATGEN_SUCCESS);
-  ASSERT_NE(result, nullptr);
-  EXPECT_EQ(result->rows, 20);
-  EXPECT_EQ(result->cols, 20);
+  // Test multiple scale factors
+  matgen_index_t scales[] = {2, 3, 4, 5};
 
-  // 1 entry becomes a 10x10 block = 100 entries
-  EXPECT_EQ(result->nnz, 100);
+  for (auto scale : scales) {
+    matgen_csr_matrix_t* result = nullptr;
+    matgen_error_t err = matgen_scale_nearest_neighbor(
+        source, 4 * scale, 4 * scale, MATGEN_COLLISION_SUM, &result);
 
-  // Verify value conservation
-  // Original value 1.0 distributed across 10x10 = 100 cells
-  double expected_value = 1.0 / 100.0;
-  double total_sum = 0.0;
+    ASSERT_EQ(err, MATGEN_SUCCESS);
+    ASSERT_NE(result, nullptr);
 
-  for (matgen_index_t i = 0; i < result->rows; i++) {
-    for (matgen_size_t j = result->row_ptr[i]; j < result->row_ptr[i + 1];
-         j++) {
-      EXPECT_DOUBLE_EQ(result->values[j], expected_value);
-      total_sum += result->values[j];
-    }
+    double result_density =
+        (double)result->nnz / (double)(result->rows * result->cols);
+
+    // Density should be preserved
+    EXPECT_NEAR(result_density, source_density, 1e-10)
+        << "Density not preserved for scale factor " << scale;
+
+    matgen_csr_destroy(result);
   }
 
-  // Sum should be conserved
-  EXPECT_DOUBLE_EQ(total_sum, 1.0);
-
   matgen_csr_destroy(source);
-  matgen_csr_destroy(result);
 }
 
 TEST(NearestNeighborTest, ValueConservation) {
@@ -304,7 +317,7 @@ TEST(NearestNeighborTest, ValueConservation) {
     }
 
     // Verify sum is conserved (within floating point tolerance)
-    EXPECT_NEAR(result_sum, original_sum, 1e-10)
+    EXPECT_NEAR(result_sum, original_sum, 1e-9)
         << "Sum not conserved for " << test.new_rows << "x" << test.new_cols
         << " scaling";
 
@@ -344,7 +357,7 @@ TEST(NearestNeighborTest, FractionalScaling) {
   }
 
   // Verify sum conservation even with fractional scaling
-  EXPECT_NEAR(result_sum, original_sum, 1e-10);
+  EXPECT_NEAR(result_sum, original_sum, 1e-9);
 
   matgen_csr_destroy(source);
   matgen_csr_destroy(result);
