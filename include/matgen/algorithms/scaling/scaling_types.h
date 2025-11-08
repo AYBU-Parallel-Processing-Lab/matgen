@@ -25,14 +25,14 @@ typedef enum {
 } matgen_interpolation_method_t;
 
 /**
- * @brief Collision handling policy for nearest neighbor
- *
- * When multiple source entries map to the same target cell
+ * @brief Collision policy for handling duplicate (row, col) pairs
  */
 typedef enum {
-  MATGEN_COLLISION_SUM = 0,  // Sum all values
-  MATGEN_COLLISION_AVG = 1,  // Average all values
-  MATGEN_COLLISION_MAX = 2   // Take maximum value
+  MATGEN_COLLISION_SUM, /**< Add values together (default) */
+  MATGEN_COLLISION_AVG, /**< Average all values */
+  MATGEN_COLLISION_MAX, /**< Keep maximum value */
+  MATGEN_COLLISION_MIN, /**< Keep minimum value */
+  MATGEN_COLLISION_LAST /**< Keep last inserted value */
 } matgen_collision_policy_t;
 
 // =============================================================================

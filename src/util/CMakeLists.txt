@@ -3,4 +3,5 @@ target_sources(
   PRIVATE
     "log.c"
     "argparse.c"
+    "accumulator.c"
 )

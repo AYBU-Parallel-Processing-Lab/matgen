@@ -3,4 +3,5 @@ target_sources(
   PRIVATE
     "argparse_test.cpp"
     "log_test.cpp"
+    "accumulator_test.cpp"
 )
