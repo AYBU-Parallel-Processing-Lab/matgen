@@ -8,8 +8,8 @@
  * Writes Matrix Market (.mtx) coordinate format files.
  */
 
-#include "matgen/core/coo_matrix.h"
-#include "matgen/core/csr_matrix.h"
+#include "matgen/core/matrix/coo.h"
+#include "matgen/core/matrix/csr.h"
 #include "matgen/core/types.h"
 
 #ifdef __cplusplus

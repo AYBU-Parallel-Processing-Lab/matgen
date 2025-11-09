@@ -8,7 +8,7 @@
  * Reads Matrix Market (.mtx) coordinate format files.
  */
 
-#include "matgen/core/coo_matrix.h"
+#include "matgen/core/matrix/coo.h"
 #include "matgen/core/types.h"
 #include "matgen/io/mtx_common.h"
 

@@ -1,5 +1,0 @@
-target_sources(
-  matgen_test
-  PRIVATE
-    "mtx_io_test.cpp"
-)

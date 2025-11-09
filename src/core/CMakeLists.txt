@@ -1,7 +1,2 @@
-target_sources(
-  matgen
-  PRIVATE
-    "coo_matrix.c"
-    "csr_matrix.c"
-    "conversion.c"
-)
+add_subdirectory("execution")
+add_subdirectory("matrix")

@@ -64,6 +64,17 @@ typedef f32 matgen_value_t;
  */
 typedef size_t matgen_size_t;
 
+/**
+ * @brief Collision policy for handling duplicate (row, col) pairs
+ */
+typedef enum {
+  MATGEN_COLLISION_SUM, /**< Add values together (default) */
+  MATGEN_COLLISION_AVG, /**< Average all values */
+  MATGEN_COLLISION_MAX, /**< Keep maximum value */
+  MATGEN_COLLISION_MIN, /**< Keep minimum value */
+  MATGEN_COLLISION_LAST /**< Keep last inserted value */
+} matgen_collision_policy_t;
+
 // =============================================================================
 // Error Codes
 // =============================================================================
