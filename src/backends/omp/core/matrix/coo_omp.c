@@ -342,28 +342,99 @@ matgen_error_t matgen_coo_sum_duplicates_omp(matgen_coo_matrix_t* matrix) {
   MATGEN_LOG_DEBUG("Summing duplicates in COO matrix (OMP) with %zu entries",
                    matrix->nnz);
 
-  // For now, use sequential algorithm (parallel deduplication is complex)
-  // TODO: Implement parallel version using segmented scan
-  matgen_size_t write_idx = 0;
+  // Three-phase parallel algorithm:
+  // Phase 1: Mark boundaries (where (row,col) changes)
+  // Phase 2: Prefix sum to find output positions
+  // Phase 3: Parallel reduction within each group + compaction
 
-  for (matgen_size_t read_idx = 0; read_idx < matrix->nnz; read_idx++) {
-    matrix->row_indices[write_idx] = matrix->row_indices[read_idx];
-    matrix->col_indices[write_idx] = matrix->col_indices[read_idx];
-    matrix->values[write_idx] = matrix->values[read_idx];
-
-    while (
-        read_idx + 1 < matrix->nnz &&
-        matrix->row_indices[read_idx + 1] == matrix->row_indices[write_idx] &&
-        matrix->col_indices[read_idx + 1] == matrix->col_indices[write_idx]) {
-      read_idx++;
-      matrix->values[write_idx] += matrix->values[read_idx];
-    }
-
-    write_idx++;
+  // Allocate boundary markers
+  uint8_t* is_boundary = (uint8_t*)calloc(matrix->nnz, sizeof(uint8_t));
+  if (!is_boundary) {
+    MATGEN_LOG_ERROR("Failed to allocate boundary array");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
   }
 
+  // Phase 1: Mark boundaries in parallel
+  is_boundary[0] = 1;  // First entry is always a boundary
+
+  int i;
+#pragma omp parallel for schedule(static)
+  for (i = 1; i < matrix->nnz; i++) {
+    if (matrix->row_indices[i] != matrix->row_indices[i - 1] ||
+        matrix->col_indices[i] != matrix->col_indices[i - 1]) {
+      is_boundary[i] = 1;
+    }
+  }
+
+  // Phase 2: Prefix sum to compute output indices (sequential for now)
+  matgen_size_t* out_idx =
+      (matgen_size_t*)malloc(matrix->nnz * sizeof(matgen_size_t));
+  if (!out_idx) {
+    free(is_boundary);
+    MATGEN_LOG_ERROR("Failed to allocate output index array");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+  out_idx[0] = 0;
+  for (matgen_size_t j = 1; j < matrix->nnz; j++) {
+    out_idx[j] = out_idx[j - 1] + is_boundary[j];
+  }
+  matgen_size_t new_nnz = out_idx[matrix->nnz - 1] + 1;
+
+  // Allocate temporary output arrays
+  matgen_index_t* out_rows =
+      (matgen_index_t*)malloc(new_nnz * sizeof(matgen_index_t));
+  matgen_index_t* out_cols =
+      (matgen_index_t*)malloc(new_nnz * sizeof(matgen_index_t));
+  matgen_value_t* out_vals =
+      (matgen_value_t*)malloc(new_nnz * sizeof(matgen_value_t));
+
+  if (!out_rows || !out_cols || !out_vals) {
+    free(is_boundary);
+    free(out_idx);
+    free(out_rows);
+    free(out_cols);
+    free(out_vals);
+    MATGEN_LOG_ERROR("Failed to allocate output arrays");
+    return MATGEN_ERROR_OUT_OF_MEMORY;
+  }
+
+// Initialize output arrays
+#pragma omp parallel for schedule(static)
+  for (i = 0; i < new_nnz; i++) {
+    out_vals[i] = (matgen_value_t)0.0;
+  }
+
+// Phase 3: Parallel reduction and write
+// Each thread processes a chunk and atomically adds to output
+#pragma omp parallel for schedule(static)
+  for (i = 0; i < matrix->nnz; i++) {
+    matgen_size_t oidx = out_idx[i];
+
+    if (is_boundary[i]) {
+      // This is a boundary - write row/col
+      out_rows[oidx] = matrix->row_indices[i];
+      out_cols[oidx] = matrix->col_indices[i];
+    }
+
+// Atomically accumulate value
+#pragma omp atomic
+    out_vals[oidx] += matrix->values[i];
+  }
+
+  // Copy back to original matrix
+  memcpy(matrix->row_indices, out_rows, new_nnz * sizeof(matgen_index_t));
+  memcpy(matrix->col_indices, out_cols, new_nnz * sizeof(matgen_index_t));
+  memcpy(matrix->values, out_vals, new_nnz * sizeof(matgen_value_t));
+
+  free(is_boundary);
+  free(out_idx);
+  free(out_rows);
+  free(out_cols);
+  free(out_vals);
+
   matgen_size_t old_nnz = matrix->nnz;
-  matrix->nnz = write_idx;
+  matrix->nnz = new_nnz;
 
   MATGEN_LOG_DEBUG("Reduced nnz from %zu to %zu (removed %zu duplicates)",
                    old_nnz, matrix->nnz, old_nnz - matrix->nnz);

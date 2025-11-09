@@ -1,9 +1,10 @@
 target_sources(
   matgen
   PRIVATE
+    "conversion_dispatch.c"
     "coo_common.c"
     "csr_common.c"
-    "conversion_dispatch.c"
     "coo_dispatch.c"
     "csr_dispatch.c"
+    "csr_builder_dispatch.c"
 )

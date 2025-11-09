@@ -4,4 +4,5 @@ target_sources(
     "conversion_seq.c"
     "coo_seq.c"
     "csr_seq.c"
+    "csr_builder_seq.c"
 )

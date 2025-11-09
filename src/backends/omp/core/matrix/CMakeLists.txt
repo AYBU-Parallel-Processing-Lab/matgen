@@ -4,4 +4,5 @@ target_sources(
     "conversion_omp.c"
     "coo_omp.c"
     "csr_omp.c"
+    "csr_builder_omp.c"
 )
