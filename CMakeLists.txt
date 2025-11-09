@@ -126,11 +126,11 @@ endif()
 # =============================================================================
 # Compiler Warnings
 # =============================================================================
-if(MSVC)
-  target_compile_options(matgen PRIVATE /W4 /WX-)
-else()
-  target_compile_options(matgen PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+# if(MSVC)
+#   target_compile_options(matgen PRIVATE /W4 /WX-)
+# else()
+#   target_compile_options(matgen PRIVATE -Wall -Wextra -Wpedantic)
+# endif()
 
 # =============================================================================
 # Add Subdirectories

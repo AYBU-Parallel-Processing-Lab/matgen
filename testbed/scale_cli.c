@@ -28,8 +28,11 @@
  */
 
 #include <matgen/algorithms/scaling/bilinear.h>
+#include <matgen/algorithms/scaling/bilinear_cuda.h>
 #include <matgen/algorithms/scaling/bilinear_omp.h>
 #include <matgen/algorithms/scaling/nearest_neighbor.h>
+#include <matgen/algorithms/scaling/nearest_neighbor_cuda.h>
+#include <matgen/algorithms/scaling/nearest_neighbor_omp.h>
 #include <matgen/core/conversion.h>
 #include <matgen/core/coo_matrix.h>
 #include <matgen/core/csr_matrix.h>
@@ -79,10 +82,18 @@ static void print_usage(const char* prog_name) {
   printf("  -m, --method <method>  Scaling method:\n");
   printf("                           'nearest'      - Nearest neighbor\n");
   printf("                           'bilinear'     - Bilinear (sequential)\n");
+#ifdef MATGEN_HAS_CUDA
+  printf(
+      "                           'nearest-cuda' - Nearest neighbor (CUDA)\n");
+  printf("                           'bilinear-cuda' - Bilinear (CUDA)\n");
+#endif
 #ifdef MATGEN_HAS_OPENMP
   printf(
       "                           'bilinear-omp' - Bilinear (OpenMP "
       "parallel)\n");
+  printf(
+      "                           'nearest-omp'  - Nearest neighbor "
+      "(OpenMP parallel)\n");
 #endif
   printf("  -r, --rows <N>         Target number of rows\n");
   printf("  -c, --cols <N>         Target number of columns\n");
@@ -104,28 +115,6 @@ static void print_usage(const char* prog_name) {
   printf("  # Scale to 100x100 using bilinear interpolation (sequential)\n");
   printf("  %s -i input.mtx -o output.mtx -m bilinear -r 100 -c 100\n",
          prog_name);
-  printf("\n");
-#ifdef MATGEN_HAS_OPENMP
-  printf(
-      "  # Scale to 100x100 using bilinear interpolation (parallel, 4 "
-      "threads)\n");
-  printf("  %s -i input.mtx -o output.mtx -m bilinear-omp -r 100 -c 100 -t 4\n",
-         prog_name);
-  printf("\n");
-  printf("  # Scale using environment variable for thread count\n");
-  printf(
-      "  OMP_NUM_THREADS=8 %s -i input.mtx -o output.mtx -m bilinear-omp -r "
-      "100 -c 100\n",
-      prog_name);
-  printf("\n");
-#endif
-  printf(
-      "  # Scale to 200x200 using nearest neighbor with max collision "
-      "policy\n");
-  printf(
-      "  %s -i input.mtx -o output.mtx -m nearest -r 200 -c 200 --collision "
-      "max\n",
-      prog_name);
   printf("\n");
 }
 
@@ -248,8 +237,21 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
       strcmp(config->method, "bilinear") == 0) {
     valid_method = true;
   }
+#ifdef MATGEN_HAS_CUDA
+  if (strcmp(config->method, "nearest-cuda") == 0) {
+    valid_method = true;
+  }
+
+  if (strcmp(config->method, "bilinear-cuda") == 0) {
+    valid_method = true;
+  }
+#endif
 #ifdef MATGEN_HAS_OPENMP
   if (strcmp(config->method, "bilinear-omp") == 0) {
+    valid_method = true;
+  }
+
+  if (strcmp(config->method, "nearest-omp") == 0) {
     valid_method = true;
   }
 #endif
@@ -257,8 +259,11 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   if (!valid_method) {
     fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
     fprintf(stderr, "Valid methods: 'nearest', 'bilinear'");
+#ifdef MATGEN_HAS_CUDA
+    fprintf(stderr, ", 'nearest-cuda', 'bilinear-cuda'");
+#endif
 #ifdef MATGEN_HAS_OPENMP
-    fprintf(stderr, ", 'bilinear-omp'");
+    fprintf(stderr, ", 'bilinear-omp' ', 'nearest-omp'");
 #endif
     fprintf(stderr, "\n");
     return false;
@@ -278,10 +283,10 @@ static void print_matrix_stats(const char* label,
   }
 
   // Compute statistics
-  matgen_value_t sum = 0.0;
-  matgen_value_t sum_sq = 0.0;
-  matgen_value_t min_val = 0.0;
-  matgen_value_t max_val = 0.0;
+  matgen_value_t sum = (matgen_value_t)0.0;
+  matgen_value_t sum_sq = (matgen_value_t)0.0;
+  matgen_value_t min_val = (matgen_value_t)0.0;
+  matgen_value_t max_val = (matgen_value_t)0.0;
   bool first = true;
 
   for (matgen_index_t i = 0; i < matrix->rows; i++) {
@@ -480,10 +485,26 @@ int main(int argc, char** argv) {
     err = matgen_scale_bilinear(input_csr, config.new_rows, config.new_cols,
                                 &output_csr);
   }
+#ifdef MATGEN_HAS_CUDA
+  else if (strcmp(config.method, "nearest-cuda") == 0) {
+    // err = matgen_scale_nearest_neighbor_cuda(
+    //     input_csr, config.new_rows, config.new_cols, config.collision_policy,
+    //     &output_csr);
+  } else if (strcmp(config.method, "bilinear-cuda") == 0) {
+    // err = matgen_scale_bilinear_cuda(input_csr, config.new_rows,
+    //                                  config.new_cols, &output_csr);
+  }
+#endif
 #ifdef MATGEN_HAS_OPENMP
   else if (strcmp(config.method, "bilinear-omp") == 0) {
     err = matgen_scale_bilinear_omp(input_csr, config.new_rows, config.new_cols,
                                     &output_csr);
+  }
+
+  else if (strcmp(config.method, "nearest-omp") == 0) {
+    err = matgen_scale_nearest_neighbor_omp(
+        input_csr, config.new_rows, config.new_cols, config.collision_policy,
+        &output_csr);
   }
 #endif
   else {

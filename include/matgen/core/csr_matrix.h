@@ -13,8 +13,6 @@
  * Benefits:
  * - Memory efficient (less overhead than COO)
  * - Fast row access and row operations
- * - Standard format for sparse BLAS operations
- * - Efficient SpMV (Sparse Matrix-Vector multiplication)
  */
 
 #include <stdio.h>
