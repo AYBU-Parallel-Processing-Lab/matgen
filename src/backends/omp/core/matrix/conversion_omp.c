@@ -1,6 +1,7 @@
 #include "backends/omp/internal/conversion_omp.h"
 
 #include <omp.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "matgen/core/execution/policy.h"

@@ -1,6 +1,8 @@
 #include "matgen/utils/log.h"
 
 #include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -260,6 +262,9 @@ static void get_timestamp(char* buffer, size_t size) {
 }
 
 static const char* basename_only(const char* path) {
+  if (!path) {
+    return "<unknown>";
+  }
   const char* base = strrchr(path, '/');
   if (!base) {
     base = strrchr(path, '\\');
@@ -305,7 +310,8 @@ void matgen_log(matgen_log_level_t level, const char* file, int line,
 
   // For debug/trace, show file location
   if (level <= MATGEN_LOG_LEVEL_DEBUG) {
-    fprintf(out, "[%s:%d %s] ", basename_only(file), line, func);
+    fprintf(out, "[%s:%d %s] ", basename_only(file), line,
+            func ? func : "<unknown>");
   }
 
   // Print the actual message

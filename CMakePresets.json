@@ -2,7 +2,7 @@
   "version": 8,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 30,
+    "minor": 28,
     "patch": 0
   },
   "configurePresets": [
@@ -34,6 +34,13 @@
       "hidden": true,
       "inherits": "base",
       "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "architecture": { "value": "x64", "strategy": "external" }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
       "architecture": { "value": "x64", "strategy": "external" }
     },
     {
@@ -79,18 +86,43 @@
       "inherits": ["windows-clang-base", "release"],
       "displayName": "Clang-CL x64 Release (Windows)",
       "description": "Builds with Clang-CL (MSVC backend) for release."
+    },
+    {
+      "name": "linux-gcc-base",
+      "hidden": true,
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "linux-gcc-debug",
+      "inherits": ["linux-gcc-base", "debug"],
+      "displayName": "GCC x64 Debug (Linux)",
+      "description": "Builds with GCC compiler for debugging."
+    },
+    {
+      "name": "linux-gcc-release",
+      "inherits": ["linux-gcc-base", "release"],
+      "displayName": "GCC x64 Release (Linux)",
+      "description": "Builds with GCC compiler for release."
     }
   ],
   "buildPresets": [
     { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
     { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
     { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug" },
-    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" }
+    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" },
+    { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
+    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" }
   ],
   "testPresets": [
     { "name": "windows-msvc-debug", "configurePreset": "windows-msvc-debug" },
     { "name": "windows-msvc-release", "configurePreset": "windows-msvc-release" },
     { "name": "windows-clang-debug", "configurePreset": "windows-clang-debug" },
-    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" }
+    { "name": "windows-clang-release", "configurePreset": "windows-clang-release" },
+    { "name": "linux-gcc-debug", "configurePreset": "linux-gcc-debug" },
+    { "name": "linux-gcc-release", "configurePreset": "linux-gcc-release" }
   ]
 }

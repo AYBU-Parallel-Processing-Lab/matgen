@@ -11,6 +11,10 @@
 #include "matgen/core/execution/policy.h"
 #include "matgen/core/types.h"
 
+#ifdef MATGEN_HAS_OPENMP
+#include <omp.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,6 +89,7 @@ struct matgen_csr_builder {
     struct {
       int num_threads;
       csr_thread_builder_t* thread_builders;  // Array of thread-local builders
+      omp_lock_t* row_locks;  // Per-row locks to prevent race conditions
     } omp;
   } backend;
 };

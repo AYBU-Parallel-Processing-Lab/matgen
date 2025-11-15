@@ -51,6 +51,12 @@
 #include <omp.h>
 #endif
 
+#ifndef _WIN32
+#include <sys/time.h>
+#else
+#include <windows.h>
+#endif
+
 // =============================================================================
 // Configuration Structure
 // =============================================================================
@@ -74,6 +80,19 @@ typedef struct {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+static double get_wall_time(void) {
+#ifdef _WIN32
+  LARGE_INTEGER frequency, counter;
+  QueryPerformanceFrequency(&frequency);
+  QueryPerformanceCounter(&counter);
+  return (double)counter.QuadPart / (double)frequency.QuadPart;
+#else
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return tv.tv_sec + tv.tv_usec * 1e-6;
+#endif
+}
 
 /**
  * @brief Print usage information
@@ -576,7 +595,7 @@ int main(int argc, char** argv) {
   matgen_csr_matrix_t* output_csr = NULL;
   matgen_error_t err;
 
-  clock_t start = clock();
+  double start = get_wall_time();
 
   if (strcmp(config.method, "nearest") == 0) {
     err = matgen_scale_nearest_neighbor_with_policy_detailed(
@@ -587,8 +606,8 @@ int main(int argc, char** argv) {
                                             config.new_cols, &output_csr);
   }
 
-  clock_t end = clock();
-  matgen_value_t elapsed_sec = (matgen_value_t)(end - start) / CLOCKS_PER_SEC;
+  double end = get_wall_time();
+  double elapsed_sec = end - start;
 
   if (err != MATGEN_SUCCESS) {
     fprintf(stderr, "Error: Matrix scaling failed with error code %d\n", err);

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.28)
 
 project(
   matgen
@@ -122,6 +122,16 @@ if(MATGEN_ENABLE_CUDA AND CUDAToolkit_FOUND)
   target_compile_definitions(matgen PUBLIC MATGEN_HAS_CUDA)
   set_target_properties(matgen PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
+
+# =============================================================================
+# Link Standard Libraries
+# ============================================================================
+
+target_link_libraries(
+  matgen
+  PUBLIC
+    m
+)
 
 # =============================================================================
 # Compiler Warnings

@@ -46,6 +46,20 @@ matgen_csr_builder_t* matgen_csr_builder_create_omp(matgen_index_t rows,
     return NULL;
   }
 
+  // Allocate row locks
+  builder->backend.omp.row_locks =
+      (omp_lock_t*)malloc(rows * sizeof(omp_lock_t));
+  if (!builder->backend.omp.row_locks) {
+    free(builder->backend.omp.thread_builders);
+    free(builder);
+    return NULL;
+  }
+
+  // Initialize all row locks
+  for (matgen_index_t r = 0; r < rows; r++) {
+    omp_init_lock(&builder->backend.omp.row_locks[r]);
+  }
+
   // Partition rows among threads
   matgen_index_t rows_per_thread = (rows + num_threads - 1) / num_threads;
 
@@ -71,6 +85,10 @@ matgen_csr_builder_t* matgen_csr_builder_create_omp(matgen_index_t rows,
         for (int i = 0; i < tid; i++) {
           free(builder->backend.omp.thread_builders[i].rows);
         }
+        for (matgen_index_t r = 0; r < rows; r++) {
+          omp_destroy_lock(&builder->backend.omp.row_locks[r]);
+        }
+        free(builder->backend.omp.row_locks);
         free(builder->backend.omp.thread_builders);
         free(builder);
         return NULL;
@@ -111,6 +129,14 @@ void matgen_csr_builder_destroy_omp(matgen_csr_builder_t* builder) {
     free(builder->backend.omp.thread_builders);
   }
 
+  // Destroy row locks
+  if (builder->backend.omp.row_locks) {
+    for (matgen_index_t r = 0; r < builder->rows; r++) {
+      omp_destroy_lock(&builder->backend.omp.row_locks[r]);
+    }
+    free(builder->backend.omp.row_locks);
+  }
+
   free(builder);
 }
 
@@ -145,12 +171,18 @@ matgen_error_t matgen_csr_builder_add_omp(matgen_csr_builder_t* builder,
   // Get local row index
   matgen_index_t local_row = row - tb->row_start;
 
+  // Lock this specific row to prevent race conditions
+  omp_set_lock(&builder->backend.omp.row_locks[row]);
+
   // Add to row buffer
   matgen_error_t err =
       csr_builder_add_to_row_buffer(&tb->rows[local_row], col, value);
   if (err == MATGEN_SUCCESS) {
     tb->entry_count++;
   }
+
+  // Unlock the row
+  omp_unset_lock(&builder->backend.omp.row_locks[row]);
 
   return err;
 }
