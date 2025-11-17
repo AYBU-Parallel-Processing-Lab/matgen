@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
+
 project(
   matgen
   VERSION 0.1.0
@@ -127,11 +129,13 @@ endif()
 # Link Standard Libraries
 # ============================================================================
 
-target_link_libraries(
-  matgen
-  PUBLIC
-    m
-)
+if (NOT MSVC)
+  target_link_libraries(
+    matgen
+    PUBLIC
+      m
+  )
+endif()
 
 # =============================================================================
 # Compiler Warnings
