@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "matgen/algorithms/scaling.h"
 #include "matgen/core/execution/policy.h"
@@ -83,7 +82,8 @@ typedef struct {
 
 static double get_wall_time(void) {
 #ifdef _WIN32
-  LARGE_INTEGER frequency, counter;
+  LARGE_INTEGER frequency;
+  LARGE_INTEGER counter;
   QueryPerformanceFrequency(&frequency);
   QueryPerformanceCounter(&counter);
   return (double)counter.QuadPart / (double)frequency.QuadPart;
