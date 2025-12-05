@@ -179,34 +179,18 @@ matgen_csr_matrix_t* matgen_coo_to_csr_cuda(const matgen_coo_matrix_t* coo) {
         cudaMemcpy(thrust::raw_pointer_cast(d_row_ptr.data()) + nrows,
                    &total_nnz, sizeof(matgen_size_t), cudaMemcpyHostToDevice));
 
-    // --- Phase 3: scatter columns & values into CSR arrays ---
-    // Prepare destination arrays on device
-    thrust::device_vector<matgen_index_t> d_dst_cols(nnz);
-    thrust::device_vector<matgen_value_t> d_dst_vals(nnz);
-
-    // We need a mutable copy of row_ptr for atomicAdd scatter; copy to
-    // d_row_scatter
-    thrust::device_vector<matgen_size_t> d_row_scatter =
-        d_row_ptr;  // copy (length nrows+1)
-
-    // Launch scatter kernel: one thread per nnz
-    int block = 256;
-    int grid = (int)((nnz + block - 1) / block);
-    scatter_to_csr_kernel<<<grid, block>>>(
-        thrust::raw_pointer_cast(d_rows.data()),
-        thrust::raw_pointer_cast(d_cols.data()),
-        thrust::raw_pointer_cast(d_vals.data()), nnz,
-        thrust::raw_pointer_cast(d_row_scatter.data()),
-        thrust::raw_pointer_cast(d_dst_cols.data()),
-        thrust::raw_pointer_cast(d_dst_vals.data()));
-    CUDA_CHECK_RET_NULL(cudaGetLastError());
-    CUDA_CHECK_RET_NULL(cudaDeviceSynchronize());
+    // --- Phase 3: copy columns & values into CSR arrays (order-preserving) ---
+    // Since COO is sorted by (row, col), we can directly copy to CSR
+    // No atomic scatter needed - the sorted order is exactly what CSR needs
+    thrust::device_vector<matgen_index_t> d_dst_cols = d_cols;
+    thrust::device_vector<matgen_value_t> d_dst_vals = d_vals;
 
     // Copy row_ptr, col_indices, values back to host CSR structure
     // row_ptr length = nrows+1
     CUDA_CHECK_RET_NULL(cudaMemcpy(
         csr->row_ptr, thrust::raw_pointer_cast(d_row_ptr.data()),
         ((size_t)nrows + 1) * sizeof(matgen_size_t), cudaMemcpyDeviceToHost));
+
     // copy col_indices and values
     CUDA_CHECK_RET_NULL(cudaMemcpy(
         csr->col_indices, thrust::raw_pointer_cast(d_dst_cols.data()),

@@ -10,6 +10,10 @@
 #include "backends/omp/internal/bilinear_omp.h"
 #endif
 
+#ifdef MATGEN_HAS_CUDA
+#include "backends/cuda/internal/bilinear_cuda.h"
+#endif
+
 matgen_error_t matgen_scale_bilinear_with_policy(
     matgen_exec_policy_t policy, const matgen_csr_matrix_t* source,
     matgen_index_t new_rows, matgen_index_t new_cols,
@@ -38,6 +42,11 @@ matgen_error_t matgen_scale_bilinear_with_policy(
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_scale_bilinear_omp(source, new_rows, new_cols, result);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
@@ -80,6 +89,11 @@ matgen_error_t matgen_scale_bilinear_with_policy_detailed(
   MATGEN_DISPATCH_CASE_PAR:
     // TODO: Accept num_threads parameter in matgen_scale_bilinear_omp()
     return matgen_scale_bilinear_omp(source, new_rows, new_cols, result);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
