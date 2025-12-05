@@ -131,9 +131,11 @@ matgen_exec_policy_t matgen_exec_resolve(matgen_exec_policy_t policy) {
     if (matgen_exec_is_available(MATGEN_EXEC_PAR_UNSEQ)) {
       return MATGEN_EXEC_PAR_UNSEQ;
     }
+
     if (matgen_exec_is_available(MATGEN_EXEC_PAR)) {
       return MATGEN_EXEC_PAR;
     }
+
     return MATGEN_EXEC_SEQ;
   }
 

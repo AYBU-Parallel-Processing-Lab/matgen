@@ -10,6 +10,10 @@
 #include "backends/omp/internal/coo_omp.h"
 #endif
 
+#ifdef MATGEN_HAS_CUDA
+#include "backends/cuda/internal/coo_cuda.h"
+#endif
+
 // =============================================================================
 // Creation and Destruction
 // =============================================================================
@@ -27,6 +31,11 @@ matgen_coo_matrix_t* matgen_coo_create(matgen_index_t rows, matgen_index_t cols,
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_coo_create_omp(rows, cols, nnz_hint);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_coo_create_cuda(rows, cols, nnz_hint);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
@@ -67,6 +76,11 @@ matgen_error_t matgen_coo_sort_with_policy(matgen_coo_matrix_t* matrix,
     return matgen_coo_sort_omp(matrix);
 #endif
 
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_coo_sort_cuda(matrix);
+#endif
+
   MATGEN_DISPATCH_DEFAULT:
     return matgen_coo_sort_seq(matrix);
   }
@@ -97,6 +111,11 @@ matgen_error_t matgen_coo_sum_duplicates_with_policy(
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_coo_sum_duplicates_omp(matrix);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_coo_sum_duplicates_cuda(matrix);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
@@ -130,6 +149,11 @@ matgen_error_t matgen_coo_merge_duplicates_with_policy(
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_coo_merge_duplicates_omp(matrix, collision_policy);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_coo_merge_duplicates_cuda(matrix, collision_policy);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:

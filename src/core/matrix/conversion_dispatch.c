@@ -10,6 +10,10 @@
 #include "backends/omp/internal/conversion_omp.h"
 #endif
 
+#ifdef MATGEN_HAS_CUDA
+#include "backends/cuda/internal/conversion_cuda.h"
+#endif
+
 // =============================================================================
 // COO to CSR Conversion
 // =============================================================================
@@ -36,6 +40,11 @@ matgen_csr_matrix_t* matgen_coo_to_csr_with_policy(
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_coo_to_csr_omp(coo);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_coo_to_csr_cuda(coo);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
@@ -76,6 +85,11 @@ matgen_coo_matrix_t* matgen_csr_to_coo_with_policy(
 #ifdef MATGEN_HAS_OPENMP
   MATGEN_DISPATCH_CASE_PAR:
     return matgen_csr_to_coo_omp(csr);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_csr_to_coo_cuda(csr);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
