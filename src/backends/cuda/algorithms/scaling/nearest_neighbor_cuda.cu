@@ -85,16 +85,16 @@ __global__ void nearest_neighbor_scale_kernel(
   // This is equivalent to:
   //   (src_row - 0.5) * row_scale < dr < (src_row + 0.5) * row_scale
 
-  matgen_value_t dst_row_start_f = ((matgen_value_t)src_row - 0.5f) * row_scale;
-  matgen_value_t dst_row_end_f = ((matgen_value_t)src_row + 0.5f) * row_scale;
-  matgen_value_t dst_col_start_f = ((matgen_value_t)src_col - 0.5f) * col_scale;
-  matgen_value_t dst_col_end_f = ((matgen_value_t)src_col + 0.5f) * col_scale;
+  matgen_value_t dst_row_start_f = ((matgen_value_t)src_row - 0.5F) * row_scale;
+  matgen_value_t dst_row_end_f = ((matgen_value_t)src_row + 0.5F) * row_scale;
+  matgen_value_t dst_col_start_f = ((matgen_value_t)src_col - 0.5F) * col_scale;
+  matgen_value_t dst_col_end_f = ((matgen_value_t)src_col + 0.5F) * col_scale;
 
-  // Convert to integer ranges (using ceil for start)
+  // Convert to integer ranges (using ceil for start, floor for end)
   matgen_index_t dst_row_start = (matgen_index_t)ceilf(dst_row_start_f);
-  matgen_index_t dst_row_end = (matgen_index_t)ceilf(dst_row_end_f);
+  matgen_index_t dst_row_end = (matgen_index_t)floorf(dst_row_end_f);
   matgen_index_t dst_col_start = (matgen_index_t)ceilf(dst_col_start_f);
-  matgen_index_t dst_col_end = (matgen_index_t)ceilf(dst_col_end_f);
+  matgen_index_t dst_col_end = (matgen_index_t)floorf(dst_col_end_f);
 
   // Clamp to valid range
   dst_row_start = min(max((matgen_index_t)0, dst_row_start), dst_rows);
@@ -102,12 +102,9 @@ __global__ void nearest_neighbor_scale_kernel(
   dst_col_start = min(max((matgen_index_t)0, dst_col_start), dst_cols);
   dst_col_end = min(max((matgen_index_t)0, dst_col_end), dst_cols);
 
-  // Ensure at least one cell if this source cell should contribute
-  if (dst_row_end <= dst_row_start) {
-    dst_row_end = min(dst_row_start + 1, dst_rows);
-  }
-  if (dst_col_end <= dst_col_start) {
-    dst_col_end = min(dst_col_start + 1, dst_cols);
+  // Skip if no valid cells in range
+  if (dst_row_end <= dst_row_start || dst_col_end <= dst_col_start) {
+    return;
   }
 
   // Generate entries for each destination cell in the block

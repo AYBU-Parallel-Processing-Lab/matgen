@@ -104,12 +104,11 @@ matgen_error_t matgen_scale_nearest_neighbor_omp(
         matgen_value_t dst_col_end_f =
             (matgen_value_t)((matgen_value_t)src_col + 0.5) * col_scale;
 
-        // Convert to integer ranges (using ceil for start to get first integer
-        // in range)
-        matgen_index_t dst_row_start = (matgen_index_t)ceil(dst_row_start_f);
-        matgen_index_t dst_row_end = (matgen_index_t)ceil(dst_row_end_f);
-        matgen_index_t dst_col_start = (matgen_index_t)ceil(dst_col_start_f);
-        matgen_index_t dst_col_end = (matgen_index_t)ceil(dst_col_end_f);
+        // Convert to integer ranges (using ceil for start, floor for end)
+        matgen_index_t dst_row_start = (matgen_index_t)ceilf(dst_row_start_f);
+        matgen_index_t dst_row_end = (matgen_index_t)floorf(dst_row_end_f);
+        matgen_index_t dst_col_start = (matgen_index_t)ceilf(dst_col_start_f);
+        matgen_index_t dst_col_end = (matgen_index_t)floorf(dst_col_end_f);
 
         // Clamp to valid range
         dst_row_start = MATGEN_CLAMP(dst_row_start, 0, new_rows);
@@ -117,12 +116,9 @@ matgen_error_t matgen_scale_nearest_neighbor_omp(
         dst_col_start = MATGEN_CLAMP(dst_col_start, 0, new_cols);
         dst_col_end = MATGEN_CLAMP(dst_col_end, 0, new_cols);
 
-        // Ensure at least one cell if this source cell should contribute
-        if (dst_row_end <= dst_row_start) {
-          dst_row_end = MATGEN_CLAMP(dst_row_start + 1, 0, new_rows);
-        }
-        if (dst_col_end <= dst_col_start) {
-          dst_col_end = MATGEN_CLAMP(dst_col_start + 1, 0, new_cols);
+        // Skip if no valid cells in range
+        if (dst_row_end <= dst_row_start || dst_col_end <= dst_col_start) {
+          continue;
         }
 
         // For nearest neighbor, each destination cell gets the FULL source

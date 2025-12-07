@@ -38,10 +38,17 @@ matgen_error_t matgen_scale_bilinear_omp(const matgen_csr_matrix_t* source,
   MATGEN_LOG_DEBUG("Using %d OpenMP threads", num_threads);
 
   // Estimate output NNZ
-  matgen_value_t avg_contributions_per_source =
-      (matgen_value_t)(row_scale + 1.0) * (matgen_value_t)(col_scale + 1.0);
+  matgen_value_t max_row_contrib = ceilf((2.0F * row_scale) + 2.0F);
+  matgen_value_t max_col_contrib = ceilf((2.0F * col_scale) + 2.0F);
+  matgen_value_t max_contributions_per_source =
+      max_row_contrib * max_col_contrib;
+
   size_t estimated_nnz_total = (size_t)((matgen_value_t)source->nnz *
-                                        avg_contributions_per_source * 1.2);
+                                        max_contributions_per_source * 1.5F);
+
+  if (estimated_nnz_total < source->nnz * 4) {
+    estimated_nnz_total = source->nnz * 4;
+  }
 
   MATGEN_LOG_DEBUG("Estimated output NNZ: %zu", estimated_nnz_total);
 

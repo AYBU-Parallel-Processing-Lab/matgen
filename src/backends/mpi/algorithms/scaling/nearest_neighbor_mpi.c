@@ -114,9 +114,9 @@ matgen_error_t matgen_scale_nearest_neighbor_mpi(
           ((matgen_value_t)src_col + 0.5F) * col_scale;
 
       matgen_index_t dst_row_start = (matgen_index_t)ceilf(dst_row_start_f);
-      matgen_index_t dst_row_end = (matgen_index_t)ceilf(dst_row_end_f);
+      matgen_index_t dst_row_end = (matgen_index_t)floorf(dst_row_end_f);
       matgen_index_t dst_col_start = (matgen_index_t)ceilf(dst_col_start_f);
-      matgen_index_t dst_col_end = (matgen_index_t)ceilf(dst_col_end_f);
+      matgen_index_t dst_col_end = (matgen_index_t)floorf(dst_col_end_f);
 
       // Clamp to valid range
       dst_row_start = MATGEN_CLAMP(dst_row_start, 0, new_rows);
@@ -124,12 +124,9 @@ matgen_error_t matgen_scale_nearest_neighbor_mpi(
       dst_col_start = MATGEN_CLAMP(dst_col_start, 0, new_cols);
       dst_col_end = MATGEN_CLAMP(dst_col_end, 0, new_cols);
 
-      // Ensure at least one cell
-      if (dst_row_end <= dst_row_start) {
-        dst_row_end = MATGEN_CLAMP(dst_row_start + 1, 0, new_rows);
-      }
-      if (dst_col_end <= dst_col_start) {
-        dst_col_end = MATGEN_CLAMP(dst_col_start + 1, 0, new_cols);
+      // Skip if no valid cells in range
+      if (dst_row_end <= dst_row_start || dst_col_end <= dst_col_start) {
+        continue;
       }
 
       // Generate block entries (each gets full source value)

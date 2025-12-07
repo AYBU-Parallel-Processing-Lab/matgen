@@ -340,7 +340,7 @@ matgen_error_t matgen_scale_bilinear_cuda(const matgen_csr_matrix_t* source,
 
   err = matgen_coo_sum_duplicates_cuda(coo);
   if (err != MATGEN_SUCCESS) {
-    MATGEN_LOG_ERROR("Failed to sum duplicates");
+    MATGEN_LOG_ERROR("Failed to handle duplicates");
     matgen_coo_destroy(coo);
     return err;
   }
