@@ -48,14 +48,14 @@ matgen_error_t matgen_scale_bilinear_with_policy(
     return matgen_scale_bilinear_omp(source, new_rows, new_cols, result);
 #endif
 
-#ifdef MATGEN_HAS_CUDA
-  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
-    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
-#endif
-
 #ifdef MATGEN_HAS_MPI
   MATGEN_DISPATCH_CASE_MPI:
     return matgen_scale_bilinear_mpi(source, new_rows, new_cols, result);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
@@ -91,14 +91,14 @@ matgen_error_t matgen_scale_bilinear_with_policy_detailed(
     return matgen_scale_bilinear_omp(source, new_rows, new_cols, result);
 #endif
 
-#ifdef MATGEN_HAS_CUDA
-  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
-    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
-#endif
-
 #ifdef MATGEN_HAS_MPI
   MATGEN_DISPATCH_CASE_MPI:
     return matgen_scale_bilinear_mpi(source, new_rows, new_cols, result);
+#endif
+
+#ifdef MATGEN_HAS_CUDA
+  MATGEN_DISPATCH_CASE_PAR_UNSEQ:
+    return matgen_scale_bilinear_cuda(source, new_rows, new_cols, result);
 #endif
 
   MATGEN_DISPATCH_DEFAULT:
