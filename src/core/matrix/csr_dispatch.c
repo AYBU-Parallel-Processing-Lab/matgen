@@ -10,7 +10,7 @@
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-#include "backends/cuda/internal/csr_cuda.h"
+#include "backends/cuda/internal/csr_cuda.cuh"
 #endif
 
 #ifdef MATGEN_HAS_MPI

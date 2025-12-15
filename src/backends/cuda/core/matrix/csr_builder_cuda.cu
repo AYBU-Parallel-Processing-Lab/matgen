@@ -1,4 +1,3 @@
-// backends/cuda/internal/csr_builder_cuda.cu
 #include <cuda_runtime.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
@@ -18,7 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "backends/cuda/internal/csr_builder_cuda.h"
+#include "backends/cuda/internal/csr_builder_cuda.cuh"
 #include "core/matrix/csr_builder_internal.h"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/core/matrix/csr_builder.h"

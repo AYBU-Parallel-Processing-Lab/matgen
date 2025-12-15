@@ -11,7 +11,7 @@
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-#include "backends/cuda/internal/nearest_neighbor_cuda.h"
+#include "backends/cuda/internal/nearest_neighbor_cuda.cuh"
 #endif
 
 #ifdef MATGEN_HAS_MPI

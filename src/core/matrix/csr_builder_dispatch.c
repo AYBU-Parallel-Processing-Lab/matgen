@@ -9,7 +9,7 @@
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-#include "backends/cuda/internal/csr_builder_cuda.h"
+#include "backends/cuda/internal/csr_builder_cuda.cuh"
 #endif
 
 #ifdef MATGEN_HAS_MPI
@@ -70,7 +70,8 @@ void matgen_csr_builder_destroy(matgen_csr_builder_t* builder) {
 
 #ifdef MATGEN_HAS_MPI
     case MATGEN_EXEC_MPI:
-      return matgen_csr_builder_destroy_mpi(builder);
+      matgen_csr_builder_destroy_mpi(builder);
+      break;
 #endif
 
 #ifdef MATGEN_HAS_CUDA

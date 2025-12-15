@@ -11,7 +11,7 @@
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-#include "backends/cuda/internal/conversion_cuda.h"
+#include "backends/cuda/internal/conversion_cuda.cuh"
 #endif
 
 #ifdef MATGEN_HAS_MPI

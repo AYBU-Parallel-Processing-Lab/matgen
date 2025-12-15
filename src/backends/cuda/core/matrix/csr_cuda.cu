@@ -23,7 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "backends/cuda/internal/csr_cuda.h"
+#include "backends/cuda/internal/csr_cuda.cuh"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/utils/log.h"
 

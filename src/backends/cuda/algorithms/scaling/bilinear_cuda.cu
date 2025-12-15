@@ -1,10 +1,10 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-#include "backends/cuda/internal/bilinear_cuda.h"
-#include "backends/cuda/internal/conversion_cuda.h"
-#include "backends/cuda/internal/coo_cuda.h"
-#include "backends/cuda/internal/csr_builder_cuda.h"
+#include "backends/cuda/internal/bilinear_cuda.cuh"
+#include "backends/cuda/internal/conversion_cuda.cuh"
+#include "backends/cuda/internal/coo_cuda.cuh"
+#include "backends/cuda/internal/csr_builder_cuda.cuh"
 #include "matgen/core/matrix/coo.h"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/core/types.h"

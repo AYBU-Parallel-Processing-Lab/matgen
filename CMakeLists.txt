@@ -1,13 +1,4 @@
-cmake_minimum_required(VERSION 3.28)
-
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
-
-project(
-  matgen
-  VERSION 0.1.0
-  DESCRIPTION "Parallel Sparse Matrix Generation with Nearest Neighbor Search"
-  LANGUAGES C CXX CUDA
-)
+cmake_minimum_required(VERSION 3.22)
 
 # =============================================================================
 # Project Options
@@ -15,6 +6,17 @@ project(
 option(MATGEN_ENABLE_OPENMP "Enable OpenMP support for shared-memory parallelization" ON)
 option(MATGEN_ENABLE_MPI "Enable MPI support for distributed-memory parallelization" ON)
 option(MATGEN_ENABLE_CUDA "Enable CUDA support for GPU acceleration" ON)
+option(MATGEN_ENABLE_COMPILER_WARNINGS "Enable compiler warnings" ON)
+
+# =============================================================================
+# Project Definition
+# ============================================================================
+project(
+  matgen
+  VERSION 0.1.0
+  DESCRIPTION "Parallel Sparse Matrix Generation with Nearest Neighbor Search"
+  LANGUAGES C CXX
+)
 
 # =============================================================================
 # C/C++ Standards
@@ -64,31 +66,21 @@ endif()
 
 # CUDA
 if(MATGEN_ENABLE_CUDA)
+  # Allow unsupported compilers (e.g., newer versions of GCC/Clang/MSVC)
+  set(CMAKE_CUDA_FLAGS_INIT "-allow-unsupported-compiler")
   enable_language(CUDA)
+
   find_package(CUDAToolkit REQUIRED)
-  if(CUDAToolkit_FOUND)
-    message(STATUS "CUDA found: ${CUDAToolkit_VERSION}")
-    set(MATGEN_HAS_CUDA TRUE)
-    set(CMAKE_CUDA_STANDARD 17)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-  else()
-    message(FATAL_ERROR "CUDA requested but not found")
-  endif()
+
+  set(MATGEN_HAS_CUDA TRUE)
+  set(CMAKE_CUDA_STANDARD 20)
+  set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 endif()
 
 # =============================================================================
 # Main Library Target
 # =============================================================================
 add_library(matgen STATIC)
-
-target_include_directories(
-  matgen
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-  PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-)
 
 target_include_directories(
   matgen
@@ -117,10 +109,10 @@ if(MATGEN_ENABLE_MPI AND MPI_FOUND)
 endif()
 
 # CUDA
-if(MATGEN_ENABLE_CUDA AND CUDAToolkit_FOUND)
-  target_link_libraries(matgen PUBLIC CUDA::cudart CUDA::cublas CUDA::cusparse)
+if(MATGEN_ENABLE_CUDA AND ${CUDAToolkit_FOUND})
   target_compile_definitions(matgen PUBLIC MATGEN_HAS_CUDA)
   set_target_properties(matgen PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+  target_link_libraries(matgen PUBLIC CUDA::cudart)
 endif()
 
 # =============================================================================
@@ -138,11 +130,13 @@ endif()
 # =============================================================================
 # Compiler Warnings
 # =============================================================================
-# if(MSVC)
-#   target_compile_options(matgen PRIVATE /W4 /WX-)
-# else()
-#   target_compile_options(matgen PRIVATE -Wall -Wextra -Wpedantic)
-# endif()
+if (MATGEN_ENABLE_COMPILER_WARNINGS)
+  if(MSVC)
+    target_compile_options(matgen PRIVATE $<$<COMPILE_LANGUAGE:CXX>:/W4 /WX>)
+  else()
+    target_compile_options(matgen PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wpedantic -Werror>)
+  endif()
+endif()
 
 # =============================================================================
 # Add Subdirectories
@@ -173,6 +167,5 @@ if(ENABLE_MPI)
 endif()
 message(STATUS "  CUDA:           ${MATGEN_ENABLE_CUDA}")
 if(ENABLE_CUDA)
-  message(STATUS "    Version:      ${CUDAToolkit_VERSION}")
-  message(STATUS "    Arch:         ${CMAKE_CUDA_ARCHITECTURES}")
+  message(STATUS "    Version:      ${CUDA_VERSION}")
 endif()

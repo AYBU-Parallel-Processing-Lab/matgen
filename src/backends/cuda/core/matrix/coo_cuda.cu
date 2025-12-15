@@ -1,4 +1,3 @@
-// backends/cuda/internal/coo_cuda.cu
 #include <cuda_runtime.h>
 #include <thrust/copy.h>
 #include <thrust/device_vector.h>
@@ -18,7 +17,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "backends/cuda/internal/coo_cuda.h"
+#include "backends/cuda/internal/coo_cuda.cuh"
 #include "matgen/core/matrix/coo.h"
 #include "matgen/utils/log.h"
 

@@ -2,9 +2,9 @@
 #include <cuda_runtime.h>
 #include <math.h>
 
-#include "backends/cuda/internal/conversion_cuda.h"
-#include "backends/cuda/internal/coo_cuda.h"
-#include "backends/cuda/internal/nearest_neighbor_cuda.h"
+#include "backends/cuda/internal/conversion_cuda.cuh"
+#include "backends/cuda/internal/coo_cuda.cuh"
+#include "backends/cuda/internal/nearest_neighbor_cuda.cuh"
 #include "matgen/core/matrix/coo.h"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/core/types.h"

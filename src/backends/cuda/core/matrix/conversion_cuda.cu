@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "backends/cuda/internal/conversion_cuda.h"
+#include "backends/cuda/internal/conversion_cuda.cuh"
 #include "matgen/core/matrix/coo.h"
 #include "matgen/core/matrix/csr.h"
 #include "matgen/utils/log.h"
@@ -44,28 +44,6 @@
       return retval;                                                  \
     }                                                                 \
   } while (0)
-
-// -----------------------------------------------------------------------------
-// Small device kernel: scatter entries into CSR using atomicAdd on per-row
-// d_row_scatter must be initialized with starting positions (row_ptr)
-// -----------------------------------------------------------------------------
-__global__ static void scatter_to_csr_kernel(const matgen_index_t* d_rows,
-                                             const matgen_index_t* d_cols,
-                                             const matgen_value_t* d_vals,
-                                             matgen_size_t nnz,
-                                             matgen_size_t* d_row_scatter,
-                                             matgen_index_t* d_dst_cols,
-                                             matgen_value_t* d_dst_vals) {
-  matgen_size_t idx = (matgen_size_t)blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= nnz) return;
-
-  matgen_index_t r = d_rows[idx];
-  // atomicAdd on unsigned long long for 64-bit safety, cast pointer accordingly
-  unsigned long long pos =
-      atomicAdd((unsigned long long*)&d_row_scatter[r], 1ULL);
-  d_dst_cols[pos] = d_cols[idx];
-  d_dst_vals[pos] = d_vals[idx];
-}
 
 // -----------------------------------------------------------------------------
 // Kernel to expand CSR->COO: one thread per row, write row index into positions
@@ -113,7 +91,6 @@ matgen_csr_matrix_t* matgen_coo_to_csr_cuda(const matgen_coo_matrix_t* coo) {
 
   size_t nnz = coo->nnz;
   matgen_index_t nrows = coo->rows;
-  matgen_index_t ncols = coo->cols;
 
   try {
     // Device copies of COO arrays
