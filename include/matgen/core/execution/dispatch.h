@@ -11,7 +11,6 @@
  */
 
 #include "matgen/core/execution/policy.h"
-#include "matgen/utils/log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -120,52 +119,6 @@ void matgen_dispatch_log(const matgen_dispatch_context_t* ctx,
   }                           \
   }                           \
   while (0)
-
-// =============================================================================
-// Pipeline Execution Guards
-// =============================================================================
-
-/**
- * @brief Ensure a pipeline stays in the same execution mode
- *
- * When composing multiple operations into a pipeline, use this to ensure
- * all operations use the same execution policy. This prevents inefficient
- * mixing of sequential and parallel code.
- *
- * Example:
- * ```c
- * matgen_dispatch_context_t ctx = matgen_dispatch_create(MATGEN_EXEC_PAR);
- * MATGEN_PIPELINE_BEGIN(ctx);
- *   step1_result = operation1(&ctx, ...);
- *   step2_result = operation2(&ctx, ...);
- *   final_result = operation3(&ctx, ...);
- * MATGEN_PIPELINE_END();
- * ```
- */
-#define MATGEN_PIPELINE_BEGIN(ctx)                            \
-  do {                                                        \
-    const matgen_dispatch_context_t* __pipeline_ctx = &(ctx); \
-    (void)__pipeline_ctx;
-
-#define MATGEN_PIPELINE_END() \
-  }                           \
-  while (0)
-
-/**
- * @brief Verify that an execution policy matches the pipeline context
- *
- * Use inside MATGEN_PIPELINE_BEGIN/END to verify operations use the same
- * execution policy.
- */
-#define MATGEN_PIPELINE_CHECK_POLICY(ctx)                           \
-  do {                                                              \
-    if ((ctx).resolved_policy != __pipeline_ctx->resolved_policy) { \
-      MATGEN_LOG_WARN(                                              \
-          "Pipeline policy mismatch: expected %s, got %s",          \
-          matgen_exec_policy_name(__pipeline_ctx->resolved_policy), \
-          matgen_exec_policy_name((ctx).resolved_policy));          \
-    }                                                               \
-  } while (0)
 
 #ifdef __cplusplus
 }
