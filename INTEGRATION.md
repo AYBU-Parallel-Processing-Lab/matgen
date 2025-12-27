@@ -86,6 +86,88 @@ Always implement the sequential version first in `src/backends/seq/algorithms/sc
 
 ---
 
+## 🧩 Adding a New Matrix Format (OPTIONAL)
+
+### THIS STEP IS TOTALLY OPTIONAL BECAUSE OF YOUR INTERNAL CODE STAYS INTERNAL AND YOU CAN JUST CREATE CONVERSION FUNCTION TO FINAL FORM TO WRITE MATRIX MARKET FILE.
+
+Currently, MatGen relies on **CSR** for processing and **COO** for I/O. Adding a new format requires a few steps.
+
+### 1. Define the Data Structure
+
+Create a new header in `include/matgen/core/matrix/`.
+
+```c
+// include/matgen/core/matrix/ellpack.h
+typedef struct {
+    matgen_index_t rows;
+    matgen_index_t cols;
+    matgen_index_t max_row_nnz;
+    matgen_index_t* col_indices; // Dimensions: rows * max_row_nnz
+    matgen_value_t* values;      // Dimensions: rows * max_row_nnz
+} matgen_ell_matrix_t;
+```
+
+### 2. Integration Strategy
+
+You have two options to make this usable:
+
+- **Option A: The Adapter Path (Recommended)**
+  - Implement conversion functions to/from CSR.
+  - **Benefit**: You can immediately use all existing scaling algorithms (Nearest Neighbor, Bilinear) by converting, scaling, and converting back.
+  - **Drawback**: Conversion overhead.
+- **Option B: Native Implementation**
+  - Re-implement the scaling algorithms specifically for your format.
+  - **Benefit**: Maximum performance.
+  - **Drawback**: Significant development effort.
+
+### 3. Implementing Converters
+
+If you choose Option A, implement:
+
+```c
+matgen_error_t matgen_ell_from_csr(const matgen_csr_matrix_t* src, matgen_ell_matrix_t** dst);
+matgen_error_t matgen_ell_to_csr(const matgen_ell_matrix_t* src, matgen_csr_matrix_t** dst);
+```
+
+### 4. Making it Parallel or CUDA-Accelerated
+
+To add high-performance support for your new matrix type (e.g., fast creation or conversion):
+
+#### Parallel (OpenMP)
+
+Implement the conversion logic using OpenMP parallel loops.
+
+- **Location**: `src/backends/omp/core/matrix/`
+- **Strategy**: Parallelize the loop over rows.
+
+```c
+#pragma omp parallel for
+for (matgen_index_t i = 0; i < rows; ++i) {
+    // Process row i independenty
+}
+```
+
+#### CUDA (GPU)
+
+1.  **Define a Device Struct**: If the matrix lives on GPU, the pointers in your struct must point to device memory.
+2.  **Location**: `src/backends/cuda/core/matrix/`
+3.  **Implementation**:
+    - Allocate memory using `cudaMalloc`.
+    - Write a `__global__` kernel to perform the conversion/construction.
+    - One thread per row (or one thread per element) strategy usually works best.
+
+```cpp
+// src/backends/cuda/core/matrix/ell_cuda.cu
+__global__ void csr_to_ell_kernel(...) {
+    matgen_index_t row = blockIdx.x * blockDim.x + threadIdx.x;
+    if (row < rows) {
+        // ...
+    }
+}
+```
+
+---
+
 ## 💡 Tips for Types & Precision
 
 MatGen is designed to handle massive matrices, often exceeding the limits of standard 32-bit integers.
