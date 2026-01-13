@@ -176,6 +176,7 @@ static void print_usage(const char* prog_name) {
   printf("                           'bilinear' - Bilinear interpolation\n");
   printf("                           'lanczos'  - Lanczos interpolation\n");
   printf("                           'fft'      - FFT-based interpolation\n");
+  printf("                           'wavelet'  - Wavelet-based interpolation\n");
   printf("  -r, --rows <N>         Target number of rows\n");
   printf("  -c, --cols <N>         Target number of columns\n");
   printf("\n");
@@ -484,10 +485,11 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   if (strcmp(config->method, "nearest") != 0 &&
       strcmp(config->method, "bilinear") != 0 &&
       strcmp(config->method, "lanczos") != 0 &&
-      strcmp(config->method, "fft") != 0) {
+      strcmp(config->method, "fft") != 0 &&
+      strcmp(config->method, "wavelet") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos', 'fft'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos', 'fft', 'wavelet'\n");
     }
     return false;
   }
@@ -743,6 +745,10 @@ int main(int argc, char** argv) {
       printf("Note:            FFT uses frequency-domain interpolation\n");
     }
 
+    if (strcmp(config.method, "wavelet") == 0) {
+      printf("Note:            Wavelet uses 2D Haar transform with block processing\n");
+    }
+
 #ifdef MATGEN_HAS_OPENMP
     if (resolved_policy == MATGEN_EXEC_PAR) {
       printf("OpenMP threads:  %d\n", matgen_exec_get_num_threads());
@@ -922,10 +928,14 @@ int main(int argc, char** argv) {
     err = matgen_scale_lanczos_with_policy(policy, local_input_csr,
                                            config.new_rows, config.new_cols,
                                            &local_output_csr);
-  } else {  // fft
+  } else if (strcmp(config.method, "fft") == 0) {
     err = matgen_scale_fft_with_policy(policy, local_input_csr,
                                        config.new_rows, config.new_cols,
                                        &local_output_csr);
+  } else {  // wavelet
+    err = matgen_scale_wavelet_with_policy(policy, local_input_csr,
+                                           config.new_rows, config.new_cols,
+                                           &local_output_csr);
   }
 
 #ifdef MATGEN_HAS_MPI

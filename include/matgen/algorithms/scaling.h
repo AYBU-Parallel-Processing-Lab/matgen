@@ -221,6 +221,38 @@ matgen_error_t matgen_scale_fft_with_policy_detailed(
     matgen_value_t threshold,
     matgen_csr_matrix_t** result);
     
+// =============================================================================
+// Wavelet-Based Scaling
+// =============================================================================
+
+/**
+ * @brief Scale sparse matrix using wavelet-based interpolation with execution policy
+ *
+ * Uses 2D Haar wavelet transform with block-based processing to scale sparse matrices.
+ * The algorithm preserves structural characteristics by working in the wavelet domain:
+ *   1. Groups non-zeros into BLOCK_SIZE×BLOCK_SIZE blocks
+ *   2. Applies 2-level 2D Haar DWT to each block
+ *   3. Resizes wavelet coefficients to target block size
+ *   4. Applies inverse DWT to reconstruct scaled blocks
+ *   5. Sparsifies output using threshold
+ *
+ * @param policy Execution policy (MATGEN_EXEC_SEQ, MATGEN_EXEC_PAR_UNSEQ for CUDA)
+ * @param source Source matrix (CSR format)
+ * @param new_rows Target number of rows
+ * @param new_cols Target number of columns
+ * @param result Output: scaled matrix (CSR format)
+ * @return MATGEN_SUCCESS on success, error code otherwise
+ *
+ * @note Block size is fixed at 4×4. Scale factors up to 4x are supported.
+ *       For 10x scaling, the algorithm uses larger internal buffers.
+ */
+matgen_error_t matgen_scale_wavelet_with_policy(
+    matgen_exec_policy_t policy,
+    const matgen_csr_matrix_t* source,
+    matgen_index_t new_rows,
+    matgen_index_t new_cols,
+    matgen_csr_matrix_t** result);
+
 #ifdef __cplusplus
 }
 #endif

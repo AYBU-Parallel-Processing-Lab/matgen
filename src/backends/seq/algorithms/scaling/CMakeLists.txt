@@ -8,6 +8,7 @@ if(FFTW3_FOUND)
       "nearest_neighbor_seq.c"
       "lanczos_seq.c"
       "fft_seq.c"
+      "wavelet_seq.c"
   )
   
   target_include_directories(matgen PRIVATE ${FFTW3_INCLUDE_DIRS})
@@ -23,5 +24,6 @@ else()
       "bilinear_seq.c"
       "nearest_neighbor_seq.c"
       "lanczos_seq.c"
+      "wavelet_seq.c"
   )
 endif()
