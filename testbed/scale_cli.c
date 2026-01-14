@@ -172,7 +172,8 @@ static void print_usage(const char* prog_name) {
   printf("  -o, --output <file>    Output matrix file (.mtx format)\n");
   printf("  -m, --method <method>  Scaling method:\n");
   printf("                           'nearest'  - Nearest neighbor\n");
-  printf("                           'bilinear' - Bilinear interpolation\n");
+  printf("                           'bilinear' - Bilinear interpolation\n"
+         "                           'adaptive' - Adaptive scaling\n");
   printf("  -r, --rows <N>         Target number of rows\n");
   printf("  -c, --cols <N>         Target number of columns\n");
   printf("\n");
@@ -478,10 +479,11 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
 
   // Validate method
   if (strcmp(config->method, "nearest") != 0 &&
-      strcmp(config->method, "bilinear") != 0) {
+      strcmp(config->method, "bilinear") != 0 && 
+      strcmp(config->method, "adaptive") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive'\n");
     }
     return false;
   }

@@ -109,7 +109,7 @@ if(MATGEN_ENABLE_MPI AND MPI_FOUND)
 endif()
 
 # CUDA
-if(MATGEN_ENABLE_CUDA AND ${CUDAToolkit_FOUND})
+if(MATGEN_ENABLE_CUDA AND CUDAToolkit_FOUND)
   target_compile_definitions(matgen PUBLIC MATGEN_HAS_CUDA)
   set_target_properties(matgen PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
   target_link_libraries(matgen PUBLIC CUDA::cudart)
