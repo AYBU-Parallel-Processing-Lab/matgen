@@ -1,3 +1,11 @@
+target_sources(
+  matgen
+  PRIVATE
+    "bilinear_seq.c"
+    "nearest_neighbor_seq.c"
+    "adaptive_seq.c"
+    "lanczos_seq.c"
+)
 if(FFTW3_FOUND)
   message(STATUS "FFTW3 found: enabling FFT sequential backend")
   

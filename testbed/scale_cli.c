@@ -173,6 +173,8 @@ static void print_usage(const char* prog_name) {
   printf("  -o, --output <file>    Output matrix file (.mtx format)\n");
   printf("  -m, --method <method>  Scaling method:\n");
   printf("                           'nearest'  - Nearest neighbor\n");
+  printf("                           'bilinear' - Bilinear interpolation\n"
+         "                           'adaptive' - Adaptive scaling\n");
   printf("                           'bilinear' - Bilinear interpolation\n");
   printf("                           'lanczos'  - Lanczos interpolation\n");
   printf("                           'fft'      - FFT-based interpolation\n");
@@ -483,17 +485,21 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
 
   // Validate method
   if (strcmp(config->method, "nearest") != 0 &&
-      strcmp(config->method, "bilinear") != 0 &&
-      strcmp(config->method, "lanczos") != 0 &&
+      strcmp(config->method, "bilinear") != 0 && 
+      strcmp(config->method, "adaptive") != 0 &&
+      strcmp(config->method, "lanczos") != &&
       strcmp(config->method, "fft") != 0 &&
-      strcmp(config->method, "wavelet") != 0) {
+      strcmp(config->method, "wavelet") != 0) ) {
+    if (rank == 0) {
+      fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive','lanczos', 'fft', 'wavelet'\n");
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
       fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos', 'fft', 'wavelet'\n");
     }
-    return false;
+    return false; 
   }
-
+  
   // Lanczos requires square output
   if (strcmp(config->method, "lanczos") == 0 && config->new_rows != config->new_cols) {
     if (rank == 0) {
