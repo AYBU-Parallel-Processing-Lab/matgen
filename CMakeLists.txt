@@ -138,6 +138,40 @@ if (MATGEN_ENABLE_COMPILER_WARNINGS)
   endif()
 endif()
 
+
+option(MATGEN_ENABLE_FFTW3 "Enable FFTW3 for FFT scaling" ON)
+
+if(MATGEN_ENABLE_FFTW3)
+  set(FFTW3_ROOT "$ENV{HOME}/fftw" CACHE PATH "FFTW3 root directory")
+  
+  if(EXISTS "${FFTW3_ROOT}/lib/libfftw3.a" OR EXISTS "${FFTW3_ROOT}/lib/libfftw3.so")
+    set(FFTW3_LIBRARIES "${FFTW3_ROOT}/lib/libfftw3.a")
+    set(FFTW3_INCLUDE_DIRS "${FFTW3_ROOT}/include")
+    set(FFTW3_FOUND TRUE)
+    message(STATUS "FFTW3 found (local): ${FFTW3_LIBRARIES}")
+  else()
+    # Try system-wide find_package
+    find_package(FFTW3 CONFIG QUIET)
+    if(FFTW3_FOUND)
+      message(STATUS "FFTW3 found (system): ${FFTW3_LIBRARIES}")
+    else()
+      find_package(PkgConfig QUIET)
+      if(PkgConfig_FOUND)
+        pkg_check_modules(FFTW3 fftw3 QUIET)
+        if(FFTW3_FOUND)
+          message(STATUS "FFTW3 found (pkg-config): ${FFTW3_LIBRARIES}")
+        else()
+          message(WARNING "FFTW3 not found. Install with: ./configure --prefix=$HOME/fftw && make && make install")
+          set(FFTW3_FOUND FALSE)
+        endif()
+      else()
+        message(WARNING "FFTW3 not found. Install with: ./configure --prefix=$HOME/fftw && make && make install")
+        set(FFTW3_FOUND FALSE)
+      endif()
+    endif()
+  endif()
+endif()
+
 # =============================================================================
 # Add Subdirectories
 # =============================================================================
@@ -169,3 +203,4 @@ message(STATUS "  CUDA:           ${MATGEN_ENABLE_CUDA}")
 if(ENABLE_CUDA)
   message(STATUS "    Version:      ${CUDA_VERSION}")
 endif()
+message(STATUS "  FFTW3:          ${FFTW3_FOUND}")

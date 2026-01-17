@@ -5,4 +5,6 @@ target_sources(
     "nearest_neighbor_dispatch.c"
     "adaptive_dispatch.c"
     "lanczos_dispatch.c"
+    "fft_dispatch.c"
+    "wavelet_dispatch.c"
 )
