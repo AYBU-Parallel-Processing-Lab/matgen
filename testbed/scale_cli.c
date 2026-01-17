@@ -488,15 +488,11 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
       strcmp(config->method, "lanczos") != 0) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive'\n");
-
-    if (rank == 0) {
-      fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive', 'lanczos'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive','lanczos'\n");
     }
-    return false;
-    }
+    return false; 
   }
+  
   // Lanczos requires square output
   if (strcmp(config->method, "lanczos") == 0 && config->new_rows != config->new_cols) {
     if (rank == 0) {
