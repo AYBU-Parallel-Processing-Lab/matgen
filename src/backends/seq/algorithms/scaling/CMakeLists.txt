@@ -4,4 +4,5 @@ target_sources(
     "bilinear_seq.c"
     "nearest_neighbor_seq.c"
     "adaptive_seq.c"
+    "lanczos_seq.c"
 )
