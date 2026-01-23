@@ -399,51 +399,51 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
         }
         return false;
       }
-    } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--device") == 0) {
-      if (++i >= argc) {
-        if (rank == 0) {
-          fprintf(stderr, "Error: %s requires an argument\n", argv[i - 1]);
-        }
-        return false;
-      }
-      config->cuda_device = atoi(argv[i]);
-    } else if (strcmp(argv[i], "--collision") == 0) {
-      if (++i >= argc) {
-        if (rank == 0) {
-          fprintf(stderr, "Error: --collision requires an argument\n");
-        }
-        return false;
-      }
-      if (strcmp(argv[i], "sum") == 0) {
-        config->collision_policy = MATGEN_COLLISION_SUM;
-      } else if (strcmp(argv[i], "avg") == 0) {
-        config->collision_policy = MATGEN_COLLISION_AVG;
-      } else if (strcmp(argv[i], "max") == 0) {
-        config->collision_policy = MATGEN_COLLISION_MAX;
-      } else if (strcmp(argv[i], "min") == 0) {
-        config->collision_policy = MATGEN_COLLISION_MIN;
-      } else if (strcmp(argv[i], "last") == 0) {
-        config->collision_policy = MATGEN_COLLISION_LAST;
-      } else {
-        if (rank == 0) {
-          fprintf(stderr, "Error: Unknown collision policy '%s'\n", argv[i]);
-        }
-        return false;
-      }
-    } 
-    else if (strcmp(argv[i], "-v") == 0 ||
-               strcmp(argv[i], "--verbose") == 0) {
-      config->verbose = true;
-    } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--stats") == 0) {
-      config->show_stats = true;
-    } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--quiet") == 0) {
-      config->quiet = true;
-    } else {
-      if (rank == 0) {
-        fprintf(stderr, "Error: Unknown argument '%s'\n", argv[i]);
-      }
-      return false;
-    }
+               } else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--device") == 0) {
+                 if (++i >= argc) {
+                   if (rank == 0) {
+                     fprintf(stderr, "Error: %s requires an argument\n", argv[i - 1]);
+                   }
+                   return false;
+                 }
+                 config->cuda_device = atoi(argv[i]);
+               } else if (strcmp(argv[i], "--collision") == 0) {
+                 if (++i >= argc) {
+                   if (rank == 0) {
+                     fprintf(stderr, "Error: --collision requires an argument\n");
+                   }
+                   return false;
+                 }
+                 if (strcmp(argv[i], "sum") == 0) {
+                   config->collision_policy = MATGEN_COLLISION_SUM;
+                 } else if (strcmp(argv[i], "avg") == 0) {
+                   config->collision_policy = MATGEN_COLLISION_AVG;
+                 } else if (strcmp(argv[i], "max") == 0) {
+                   config->collision_policy = MATGEN_COLLISION_MAX;
+                 } else if (strcmp(argv[i], "min") == 0) {
+                   config->collision_policy = MATGEN_COLLISION_MIN;
+                 } else if (strcmp(argv[i], "last") == 0) {
+                   config->collision_policy = MATGEN_COLLISION_LAST;
+                 } else {
+                   if (rank == 0) {
+                     fprintf(stderr, "Error: Unknown collision policy '%s'\n", argv[i]);
+                   }
+                   return false;
+                 }
+               }
+               else if (strcmp(argv[i], "-v") == 0 ||
+                          strcmp(argv[i], "--verbose") == 0) {
+                 config->verbose = true;
+                          } else if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--stats") == 0) {
+                            config->show_stats = true;
+                          } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--quiet") == 0) {
+                            config->quiet = true;
+                          } else {
+                            if (rank == 0) {
+                              fprintf(stderr, "Error: Unknown argument '%s'\n", argv[i]);
+                            }
+                            return false;
+                          }
   }
 
   // Show backend info and exit if requested
@@ -483,23 +483,23 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
     return false;
   }
 
-  // Validate method
-  if (strcmp(config->method, "nearest") != 0 &&
-      strcmp(config->method, "bilinear") != 0 && 
-      strcmp(config->method, "adaptive") != 0 &&
-      strcmp(config->method, "lanczos") != &&
-      strcmp(config->method, "fft") != 0 &&
-      strcmp(config->method, "wavelet") != 0) ) {
+  // Validate method (positive list)
+  bool method_valid =
+      strcmp(config->method, "nearest")  == 0 ||
+      strcmp(config->method, "bilinear") == 0 ||
+      strcmp(config->method, "adaptive") == 0 ||
+      strcmp(config->method, "lanczos")  == 0 ||
+      strcmp(config->method, "fft")      == 0 ||
+      strcmp(config->method, "wavelet")  == 0;
+
+  if (!method_valid) {
     if (rank == 0) {
       fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive','lanczos', 'fft', 'wavelet'\n");
-    if (rank == 0) {
-      fprintf(stderr, "Error: Invalid method '%s'\n", config->method);
-      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'lanczos', 'fft', 'wavelet'\n");
+      fprintf(stderr, "Valid methods: 'nearest', 'bilinear', 'adaptive', 'lanczos', 'fft', 'wavelet'\n");
     }
-    return false; 
+    return false;
   }
-  
+
   // Lanczos requires square output
   if (strcmp(config->method, "lanczos") == 0 && config->new_rows != config->new_cols) {
     if (rank == 0) {
@@ -510,7 +510,8 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
 
   // FFT has some limitations
   if (strcmp(config->method, "fft") == 0) {
-    if (!matgen_exec_is_available(MATGEN_EXEC_SEQ) && !matgen_exec_is_available(MATGEN_EXEC_PAR_UNSEQ)) {
+    if (!matgen_exec_is_available(MATGEN_EXEC_SEQ) &&
+        !matgen_exec_is_available(MATGEN_EXEC_PAR_UNSEQ)) {
       if (rank == 0) {
         fprintf(stderr, "Error: FFT scaling requires FFTW3 (sequential) or cuFFT (CUDA) support\n");
       }
@@ -521,580 +522,580 @@ static bool parse_args(int argc, char** argv, cli_config_t* config) {
   return true;
 }
 
-/**
- * @brief Compute and print matrix statistics (rank 0 only)
- */
-static void print_matrix_stats(const char* label,
-                               const matgen_csr_matrix_t* matrix) {
-  if (get_mpi_rank() != 0) {
-    return;
-  }
+  /**
+   * @brief Compute and print matrix statistics (rank 0 only)
+   */
+  static void print_matrix_stats(const char* label,
+                                 const matgen_csr_matrix_t* matrix) {
+    if (get_mpi_rank() != 0) {
+      return;
+    }
 
-  if (!matrix) {
-    printf("%s: NULL matrix\n", label);
-    return;
-  }
+    if (!matrix) {
+      printf("%s: NULL matrix\n", label);
+      return;
+    }
 
-  // Compute statistics
-  matgen_value_t sum = (matgen_value_t)0.0;
-  matgen_value_t sum_sq = (matgen_value_t)0.0;
-  matgen_value_t min_val = (matgen_value_t)0.0;
-  matgen_value_t max_val = (matgen_value_t)0.0;
-  bool first = true;
+    // Compute statistics
+    matgen_value_t sum = (matgen_value_t)0.0;
+    matgen_value_t sum_sq = (matgen_value_t)0.0;
+    matgen_value_t min_val = (matgen_value_t)0.0;
+    matgen_value_t max_val = (matgen_value_t)0.0;
+    bool first = true;
 
-  for (matgen_index_t i = 0; i < matrix->rows; i++) {
-    matgen_size_t row_start = matrix->row_ptr[i];
-    matgen_size_t row_end = matrix->row_ptr[i + 1];
+    for (matgen_index_t i = 0; i < matrix->rows; i++) {
+      matgen_size_t row_start = matrix->row_ptr[i];
+      matgen_size_t row_end = matrix->row_ptr[i + 1];
 
-    for (matgen_size_t idx = row_start; idx < row_end; idx++) {
-      matgen_value_t val = matrix->values[idx];
-      sum += val;
-      sum_sq += val * val;
+      for (matgen_size_t idx = row_start; idx < row_end; idx++) {
+        matgen_value_t val = matrix->values[idx];
+        sum += val;
+        sum_sq += val * val;
 
-      if (first) {
-        min_val = val;
-        max_val = val;
-        first = false;
-      } else {
-        if (val < min_val) {
+        if (first) {
           min_val = val;
-        }
-
-        if (val > max_val) {
           max_val = val;
+          first = false;
+        } else {
+          if (val < min_val) {
+            min_val = val;
+          }
+
+          if (val > max_val) {
+            max_val = val;
+          }
         }
       }
     }
+
+    matgen_value_t mean =
+        matrix->nnz > 0 ? sum / (matgen_value_t)matrix->nnz : (matgen_value_t)0.0;
+    matgen_value_t variance =
+        matrix->nnz > 0 ? (sum_sq / (matgen_value_t)matrix->nnz) - (mean * mean)
+                        : (matgen_value_t)0.0;
+    matgen_value_t std_dev = (matgen_value_t)sqrt(variance);
+    matgen_value_t frobenius = (matgen_value_t)sqrt(sum_sq);
+    matgen_value_t density = (matgen_value_t)matrix->nnz /
+                             (matgen_value_t)(matrix->rows * matrix->cols);
+    matgen_value_t sparsity = (matgen_value_t)1.0 - density;
+
+    printf("\n%s:\n", label);
+    printf("  Dimensions:      %llu × %llu\n", (unsigned long long)matrix->rows,
+           (unsigned long long)matrix->cols);
+    printf("  Non-zeros (NNZ): %llu\n", (unsigned long long)matrix->nnz);
+    printf("  Density:         %.6f (%.2f%%)\n", density, density * 100.0);
+    printf("  Sparsity:        %.6f (%.2f%%)\n", sparsity, sparsity * 100.0);
+
+    if (matrix->nnz > 0) {
+      printf("  Value range:     [%.6e, %.6e]\n", min_val, max_val);
+      printf("  Sum:             %.6e\n", sum);
+      printf("  Mean:            %.6e\n", mean);
+      printf("  Std Dev:         %.6e\n", std_dev);
+      printf("  Frobenius norm:  %.6e\n", frobenius);
+    }
   }
 
-  matgen_value_t mean =
-      matrix->nnz > 0 ? sum / (matgen_value_t)matrix->nnz : (matgen_value_t)0.0;
-  matgen_value_t variance =
-      matrix->nnz > 0 ? (sum_sq / (matgen_value_t)matrix->nnz) - (mean * mean)
-                      : (matgen_value_t)0.0;
-  matgen_value_t std_dev = (matgen_value_t)sqrt(variance);
-  matgen_value_t frobenius = (matgen_value_t)sqrt(sum_sq);
-  matgen_value_t density = (matgen_value_t)matrix->nnz /
-                           (matgen_value_t)(matrix->rows * matrix->cols);
-  matgen_value_t sparsity = (matgen_value_t)1.0 - density;
-
-  printf("\n%s:\n", label);
-  printf("  Dimensions:      %llu × %llu\n", (unsigned long long)matrix->rows,
-         (unsigned long long)matrix->cols);
-  printf("  Non-zeros (NNZ): %llu\n", (unsigned long long)matrix->nnz);
-  printf("  Density:         %.6f (%.2f%%)\n", density, density * 100.0);
-  printf("  Sparsity:        %.6f (%.2f%%)\n", sparsity, sparsity * 100.0);
-
-  if (matrix->nnz > 0) {
-    printf("  Value range:     [%.6e, %.6e]\n", min_val, max_val);
-    printf("  Sum:             %.6e\n", sum);
-    printf("  Mean:            %.6e\n", mean);
-    printf("  Std Dev:         %.6e\n", std_dev);
-    printf("  Frobenius norm:  %.6e\n", frobenius);
+  /**
+   * @brief Get collision policy name as string
+   */
+  static const char* collision_policy_name(matgen_collision_policy_t policy) {
+    switch (policy) {
+      case MATGEN_COLLISION_SUM:
+        return "sum";
+      case MATGEN_COLLISION_AVG:
+        return "average";
+      case MATGEN_COLLISION_MAX:
+        return "max";
+      case MATGEN_COLLISION_MIN:
+        return "min";
+      case MATGEN_COLLISION_LAST:
+        return "last";
+      default:
+        return "unknown";
+    }
   }
-}
-
-/**
- * @brief Get collision policy name as string
- */
-static const char* collision_policy_name(matgen_collision_policy_t policy) {
-  switch (policy) {
-    case MATGEN_COLLISION_SUM:
-      return "sum";
-    case MATGEN_COLLISION_AVG:
-      return "average";
-    case MATGEN_COLLISION_MAX:
-      return "max";
-    case MATGEN_COLLISION_MIN:
-      return "min";
-    case MATGEN_COLLISION_LAST:
-      return "last";
-    default:
-      return "unknown";
-  }
-}
 
 #ifdef MATGEN_HAS_MPI
-/**
- * @brief Broadcast error status from rank 0 to all ranks
- */
-static int broadcast_error(int error_code) {
-  MPI_Bcast(&error_code, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  return error_code;
-}
+  /**
+   * @brief Broadcast error status from rank 0 to all ranks
+   */
+  static int broadcast_error(int error_code) {
+    MPI_Bcast(&error_code, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    return error_code;
+  }
 
-/**
- * @brief Scatter CSR matrix from rank 0 to all ranks
- *
- * Forward declaration for the internal MPI function
- */
-extern matgen_csr_matrix_t* matgen_csr_scatter(
-    const matgen_csr_matrix_t* global_matrix);
+  /**
+   * @brief Scatter CSR matrix from rank 0 to all ranks
+   *
+   * Forward declaration for the internal MPI function
+   */
+  extern matgen_csr_matrix_t* matgen_csr_scatter(
+      const matgen_csr_matrix_t* global_matrix);
 
-/**
- * @brief Gather distributed CSR matrix to rank 0
- *
- * Forward declaration for the internal MPI function
- */
-extern matgen_csr_matrix_t* matgen_csr_gather(
-    const matgen_csr_matrix_t* local_matrix, matgen_index_t global_rows,
-    matgen_index_t global_cols);
+  /**
+   * @brief Gather distributed CSR matrix to rank 0
+   *
+   * Forward declaration for the internal MPI function
+   */
+  extern matgen_csr_matrix_t* matgen_csr_gather(
+      const matgen_csr_matrix_t* local_matrix, matgen_index_t global_rows,
+      matgen_index_t global_cols);
 #endif
 
-// =============================================================================
-// Main Function
-// =============================================================================
+  // =============================================================================
+  // Main Function
+  // =============================================================================
 
-// NOLINTNEXTLINE
-int main(int argc, char** argv) {
-  int exit_code = 0;
+  // NOLINTNEXTLINE
+  int main(int argc, char** argv) {
+    int exit_code = 0;
 
 #ifdef MATGEN_HAS_MPI
-  // Initialize MPI
-  MPI_Init(&argc, &argv);
+    // Initialize MPI
+    MPI_Init(&argc, &argv);
 
-  int rank = get_mpi_rank();
-  int size = get_mpi_size();
+    int rank = get_mpi_rank();
+    int size = get_mpi_size();
 
-  // Safety check: if running with MPI (size > 1), force MPI policy
-  // This prevents crashes when users run with mpiexec but forget -p mpi
-  bool force_mpi_policy = (size > 1);
+    // Safety check: if running with MPI (size > 1), force MPI policy
+    // This prevents crashes when users run with mpiexec but forget -p mpi
+    bool force_mpi_policy = (size > 1);
 #else
-  int rank = 0;
-  int size = 1;
-  bool force_mpi_policy = false;
+    int rank = 0;
+    int size = 1;
+    bool force_mpi_policy = false;
 #endif
 
-  cli_config_t config;
+    cli_config_t config;
 
-  // Parse arguments (all ranks parse, but only rank 0 prints errors)
-  if (!parse_args(argc, argv, &config)) {
-    print_usage(argv[0]);
+    // Parse arguments (all ranks parse, but only rank 0 prints errors)
+    if (!parse_args(argc, argv, &config)) {
+      print_usage(argv[0]);
 #ifdef MATGEN_HAS_MPI
-    MPI_Finalize();
+      MPI_Finalize();
 #endif
-    return 1;
-  }
+      return 1;
+    }
 
-  // Handle backend info request
-  if (config.show_backend_info) {
-    print_backend_info();
+    // Handle backend info request
+    if (config.show_backend_info) {
+      print_backend_info();
 #ifdef MATGEN_HAS_MPI
-    MPI_Finalize();
+      MPI_Finalize();
 #endif
-    return 0;
-  }
-
-  // Configure logging (suppress on non-root ranks unless verbose)
-  if (config.quiet || rank != 0) {
-    matgen_log_set_level(MATGEN_LOG_LEVEL_ERROR);
-  } else if (config.verbose) {
-    matgen_log_set_level(MATGEN_LOG_LEVEL_DEBUG);
-  } else {
-    matgen_log_set_level(MATGEN_LOG_LEVEL_INFO);
-  }
-
-  // Parse and resolve execution policy
-  matgen_exec_policy_t policy = parse_policy(config.policy_str);
-
-  // Force MPI policy if running under mpiexec with multiple processes
-  if (force_mpi_policy && policy != MATGEN_EXEC_MPI) {
-    if (rank == 0 && !config.quiet) {
-      printf("Warning: Running with %d MPI processes, forcing MPI policy\n",
-             size);
+      return 0;
     }
-    policy = MATGEN_EXEC_MPI;
-    config.policy_str = "mpi";
-  }
 
-  // For AUTO policy, select based on problem size
-  if (policy == MATGEN_EXEC_AUTO && !config.quiet && rank == 0) {
-    printf("Auto policy: selecting based on problem size...\n");
-  }
+    // Configure logging (suppress on non-root ranks unless verbose)
+    if (config.quiet || rank != 0) {
+      matgen_log_set_level(MATGEN_LOG_LEVEL_ERROR);
+    } else if (config.verbose) {
+      matgen_log_set_level(MATGEN_LOG_LEVEL_DEBUG);
+    } else {
+      matgen_log_set_level(MATGEN_LOG_LEVEL_INFO);
+    }
 
-  matgen_exec_policy_t resolved_policy = matgen_exec_resolve(policy);
+    // Parse and resolve execution policy
+    matgen_exec_policy_t policy = parse_policy(config.policy_str);
 
-  // Set OpenMP threads if specified
+    // Force MPI policy if running under mpiexec with multiple processes
+    if (force_mpi_policy && policy != MATGEN_EXEC_MPI) {
+      if (rank == 0 && !config.quiet) {
+        printf("Warning: Running with %d MPI processes, forcing MPI policy\n",
+               size);
+      }
+      policy = MATGEN_EXEC_MPI;
+      config.policy_str = "mpi";
+    }
+
+    // For AUTO policy, select based on problem size
+    if (policy == MATGEN_EXEC_AUTO && !config.quiet && rank == 0) {
+      printf("Auto policy: selecting based on problem size...\n");
+    }
+
+    matgen_exec_policy_t resolved_policy = matgen_exec_resolve(policy);
+
+    // Set OpenMP threads if specified
 #ifdef MATGEN_HAS_OPENMP
-  if (config.num_threads > 0) {
-    omp_set_num_threads(config.num_threads);
-  }
+    if (config.num_threads > 0) {
+      omp_set_num_threads(config.num_threads);
+    }
 #endif
 
-  if (!config.quiet && rank == 0) {
-    printf(
-        "======================================================================"
-        "\n");
-    printf("MatGen Matrix Scaling Tool\n");
-    printf(
-        "======================================================================"
-        "\n");
-    printf("Input:           %s\n", config.input_file);
-    printf("Output:          %s\n", config.output_file);
-    printf("Method:          %s\n", config.method);
-    printf("Target size:     %llu × %llu\n",
-           (unsigned long long)config.new_rows,
-           (unsigned long long)config.new_cols);
-    printf("Policy:          %s (resolved: %s)\n", config.policy_str,
-           matgen_exec_policy_name(resolved_policy));
+    if (!config.quiet && rank == 0) {
+      printf(
+          "======================================================================"
+          "\n");
+      printf("MatGen Matrix Scaling Tool\n");
+      printf(
+          "======================================================================"
+          "\n");
+      printf("Input:           %s\n", config.input_file);
+      printf("Output:          %s\n", config.output_file);
+      printf("Method:          %s\n", config.method);
+      printf("Target size:     %llu × %llu\n",
+             (unsigned long long)config.new_rows,
+             (unsigned long long)config.new_cols);
+      printf("Policy:          %s (resolved: %s)\n", config.policy_str,
+             matgen_exec_policy_name(resolved_policy));
 
-    if (strcmp(config.method, "nearest") == 0) {
-      printf("Collision:       %s\n",
-             collision_policy_name(config.collision_policy));
-    }
+      if (strcmp(config.method, "nearest") == 0) {
+        printf("Collision:       %s\n",
+               collision_policy_name(config.collision_policy));
+      }
 
-    if (strcmp(config.method, "lanczos") == 0) {
-      printf("Note:            Lanczos uses kernel width=3\n");
-    }
+      if (strcmp(config.method, "lanczos") == 0) {
+        printf("Note:            Lanczos uses kernel width=3\n");
+      }
 
-    if (strcmp(config.method, "fft") == 0) {
-      printf("Note:            FFT uses frequency-domain interpolation\n");
-    }
+      if (strcmp(config.method, "fft") == 0) {
+        printf("Note:            FFT uses frequency-domain interpolation\n");
+      }
 
-    if (strcmp(config.method, "wavelet") == 0) {
-      printf("Note:            Wavelet uses 2D Haar transform with block processing\n");
-    }
+      if (strcmp(config.method, "wavelet") == 0) {
+        printf("Note:            Wavelet uses 2D Haar transform with block processing\n");
+      }
 
 #ifdef MATGEN_HAS_OPENMP
-    if (resolved_policy == MATGEN_EXEC_PAR) {
-      printf("OpenMP threads:  %d\n", matgen_exec_get_num_threads());
-    }
+      if (resolved_policy == MATGEN_EXEC_PAR) {
+        printf("OpenMP threads:  %d\n", matgen_exec_get_num_threads());
+      }
 #endif
 
 #ifdef MATGEN_HAS_CUDA
-    if (resolved_policy == MATGEN_EXEC_PAR_UNSEQ) {
-      printf("CUDA devices:    %d\n", matgen_exec_get_num_cuda_devices());
-      if (config.cuda_device >= 0) {
-        printf("CUDA device ID:  %d\n", config.cuda_device);
+      if (resolved_policy == MATGEN_EXEC_PAR_UNSEQ) {
+        printf("CUDA devices:    %d\n", matgen_exec_get_num_cuda_devices());
+        if (config.cuda_device >= 0) {
+          printf("CUDA device ID:  %d\n", config.cuda_device);
+        }
       }
-    }
 #endif
+
+#ifdef MATGEN_HAS_MPI
+      if (resolved_policy == MATGEN_EXEC_MPI) {
+        printf("MPI processes:   %d\n", size);
+      }
+#endif
+
+      printf(
+          "======================================================================"
+          "\n");
+    }
+
+    // Step 1: Load input matrix (rank 0 only)
+    if (!config.quiet && rank == 0) {
+      printf("\n[1/4] Loading input matrix...\n");
+    }
+
+    matgen_coo_matrix_t* input_coo = NULL;
+    matgen_csr_matrix_t* input_csr = NULL;
+    matgen_index_t global_rows = 0;
+    matgen_index_t global_cols = 0;
+    matgen_size_t global_nnz = 0;
+
+    // Only rank 0 reads the file
+    if (rank == 0) {
+      input_coo = matgen_mtx_read(config.input_file, NULL);
+      if (!input_coo) {
+        fprintf(stderr, "Error: Failed to load input matrix from '%s'\n",
+                config.input_file);
+#ifdef MATGEN_HAS_MPI
+        broadcast_error(1);
+        MPI_Finalize();
+#endif
+        return 1;
+      }
+
+      if (config.verbose) {
+        printf("  Loaded COO matrix: %llu × %llu, nnz = %llu\n",
+               (unsigned long long)input_coo->rows,
+               (unsigned long long)input_coo->cols,
+               (unsigned long long)input_coo->nnz);
+      }
+
+      global_rows = input_coo->rows;
+      global_cols = input_coo->cols;
+      global_nnz = input_coo->nnz;
+    }
 
 #ifdef MATGEN_HAS_MPI
     if (resolved_policy == MATGEN_EXEC_MPI) {
-      printf("MPI processes:   %d\n", size);
-    }
-#endif
+      // Broadcast success to other ranks
+      int status = 0;
+      MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    printf(
-        "======================================================================"
-        "\n");
-  }
-
-  // Step 1: Load input matrix (rank 0 only)
-  if (!config.quiet && rank == 0) {
-    printf("\n[1/4] Loading input matrix...\n");
-  }
-
-  matgen_coo_matrix_t* input_coo = NULL;
-  matgen_csr_matrix_t* input_csr = NULL;
-  matgen_index_t global_rows = 0;
-  matgen_index_t global_cols = 0;
-  matgen_size_t global_nnz = 0;
-
-  // Only rank 0 reads the file
-  if (rank == 0) {
-    input_coo = matgen_mtx_read(config.input_file, NULL);
-    if (!input_coo) {
-      fprintf(stderr, "Error: Failed to load input matrix from '%s'\n",
-              config.input_file);
-#ifdef MATGEN_HAS_MPI
-      broadcast_error(1);
-      MPI_Finalize();
-#endif
-      return 1;
-    }
-
-    if (config.verbose) {
-      printf("  Loaded COO matrix: %llu × %llu, nnz = %llu\n",
-             (unsigned long long)input_coo->rows,
-             (unsigned long long)input_coo->cols,
-             (unsigned long long)input_coo->nnz);
-    }
-
-    global_rows = input_coo->rows;
-    global_cols = input_coo->cols;
-    global_nnz = input_coo->nnz;
-  }
-
-#ifdef MATGEN_HAS_MPI
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    // Broadcast success to other ranks
-    int status = 0;
-    MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    // Broadcast global dimensions
+      // Broadcast global dimensions
 #if defined(MATGEN_INDEX_64)
-    MPI_Bcast(&global_rows, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&global_cols, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_rows, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_cols, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
 #else
-    MPI_Bcast(&global_rows, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&global_cols, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_rows, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_cols, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
 #endif
 
 #if defined(MATGEN_SIZE_64)
-    MPI_Bcast(&global_nnz, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_nnz, 1, MPI_UINT64_T, 0, MPI_COMM_WORLD);
 #else
-    MPI_Bcast(&global_nnz, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
+      MPI_Bcast(&global_nnz, 1, MPI_UINT32_T, 0, MPI_COMM_WORLD);
 #endif
-  }
+    }
 #endif
 
-  // Step 2: Convert to CSR (rank 0, then distribute if MPI)
-  if (!config.quiet && rank == 0) {
-    printf("[2/4] Converting to CSR format...\n");
-  }
+    // Step 2: Convert to CSR (rank 0, then distribute if MPI)
+    if (!config.quiet && rank == 0) {
+      printf("[2/4] Converting to CSR format...\n");
+    }
 
-  if (rank == 0) {
-    // Convert COO to CSR on rank 0 using sequential policy for local conversion
-    input_csr = matgen_coo_to_csr_with_policy(input_coo, MATGEN_EXEC_SEQ);
-    matgen_coo_destroy(input_coo);
-    input_coo = NULL;
+    if (rank == 0) {
+      // Convert COO to CSR on rank 0 using sequential policy for local conversion
+      input_csr = matgen_coo_to_csr_with_policy(input_coo, MATGEN_EXEC_SEQ);
+      matgen_coo_destroy(input_coo);
+      input_coo = NULL;
 
-    if (!input_csr) {
-      fprintf(stderr, "Error: Failed to convert matrix to CSR format\n");
+      if (!input_csr) {
+        fprintf(stderr, "Error: Failed to convert matrix to CSR format\n");
+#ifdef MATGEN_HAS_MPI
+        if (resolved_policy == MATGEN_EXEC_MPI) {
+          broadcast_error(1);
+          MPI_Finalize();
+        }
+#endif
+        return 1;
+      }
+
+      if (config.show_stats) {
+        print_matrix_stats("Input Matrix Statistics", input_csr);
+      }
+    }
+
+#ifdef MATGEN_HAS_MPI
+    matgen_csr_matrix_t* local_input_csr = NULL;
+
+    if (resolved_policy == MATGEN_EXEC_MPI) {
+      // Broadcast success status
+      int status = 0;
+      MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+      // Scatter the input matrix from rank 0 to all ranks
+      if (!config.quiet && rank == 0) {
+        printf("  Distributing matrix to %d MPI processes...\n", size);
+      }
+
+      local_input_csr = matgen_csr_scatter(input_csr);
+
+      if (!local_input_csr) {
+        if (rank == 0) {
+          fprintf(stderr, "Error: Failed to scatter matrix to MPI processes\n");
+        }
+        if (input_csr) {
+          matgen_csr_destroy(input_csr);
+        }
+        MPI_Finalize();
+        return 1;
+      }
+
+      if (config.verbose && rank == 0) {
+        printf("  Matrix distributed successfully\n");
+      }
+    } else {
+      // Non-MPI policy: use the input matrix directly (only valid on rank 0)
+      local_input_csr = input_csr;
+    }
+#else
+    matgen_csr_matrix_t* local_input_csr = input_csr;
+#endif
+
+    // Step 3: Scale matrix
+    if (!config.quiet && rank == 0) {
+      printf("\n[3/4] Scaling matrix using %s interpolation...\n", config.method);
+      printf("  Backend: %s\n", matgen_exec_policy_name(resolved_policy));
+    }
+
+    matgen_csr_matrix_t* local_output_csr = NULL;
+    matgen_error_t err;
+
+    double start = get_wall_time();
+
+#ifdef MATGEN_HAS_MPI
+    // Synchronize before timing for accurate measurement
+    if (resolved_policy == MATGEN_EXEC_MPI) {
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
+#endif
+
+    if (strcmp(config.method, "nearest") == 0) {
+      err = matgen_scale_nearest_neighbor_with_policy_detailed(
+          policy, local_input_csr, config.new_rows, config.new_cols,
+          config.collision_policy, &local_output_csr);
+    } else if (strcmp(config.method, "bilinear") == 0) {
+      err = matgen_scale_bilinear_with_policy(policy, local_input_csr,
+                                              config.new_rows, config.new_cols,
+                                              &local_output_csr);
+    } else if (strcmp(config.method, "lanczos") == 0) {
+      err = matgen_scale_lanczos_with_policy(policy, local_input_csr,
+                                             config.new_rows, config.new_cols,
+                                             &local_output_csr);
+    } else if (strcmp(config.method, "fft") == 0) {
+      err = matgen_scale_fft_with_policy(policy, local_input_csr,
+                                         config.new_rows, config.new_cols,
+                                         &local_output_csr);
+    } else {  // wavelet
+      err = matgen_scale_wavelet_with_policy(policy, local_input_csr,
+                                             config.new_rows, config.new_cols,
+                                             &local_output_csr);
+    }
+
+#ifdef MATGEN_HAS_MPI
+    // Synchronize after scaling for accurate timing
+    if (resolved_policy == MATGEN_EXEC_MPI) {
+      MPI_Barrier(MPI_COMM_WORLD);
+    }
+#endif
+
+    double end = get_wall_time();
+    double elapsed_sec = end - start;
+
+    if (err != MATGEN_SUCCESS) {
+      if (rank == 0) {
+        fprintf(stderr, "Error: Matrix scaling failed with error code %d\n", err);
+      }
 #ifdef MATGEN_HAS_MPI
       if (resolved_policy == MATGEN_EXEC_MPI) {
-        broadcast_error(1);
+        if (local_input_csr && local_input_csr != input_csr) {
+          matgen_csr_destroy(local_input_csr);
+        }
+        if (input_csr) {
+          matgen_csr_destroy(input_csr);
+        }
         MPI_Finalize();
       }
 #endif
-      return 1;
-    }
-
-    if (config.show_stats) {
-      print_matrix_stats("Input Matrix Statistics", input_csr);
-    }
-  }
-
-#ifdef MATGEN_HAS_MPI
-  matgen_csr_matrix_t* local_input_csr = NULL;
-
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    // Broadcast success status
-    int status = 0;
-    MPI_Bcast(&status, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    // Scatter the input matrix from rank 0 to all ranks
-    if (!config.quiet && rank == 0) {
-      printf("  Distributing matrix to %d MPI processes...\n", size);
-    }
-
-    local_input_csr = matgen_csr_scatter(input_csr);
-
-    if (!local_input_csr) {
-      if (rank == 0) {
-        fprintf(stderr, "Error: Failed to scatter matrix to MPI processes\n");
-      }
       if (input_csr) {
         matgen_csr_destroy(input_csr);
       }
-      MPI_Finalize();
       return 1;
     }
 
-    if (config.verbose && rank == 0) {
-      printf("  Matrix distributed successfully\n");
+    if (!config.quiet && rank == 0) {
+      printf("  Scaling completed in %.3f ms (%.6f seconds)\n",
+             elapsed_sec * 1000.0, elapsed_sec);
     }
-  } else {
-    // Non-MPI policy: use the input matrix directly (only valid on rank 0)
-    local_input_csr = input_csr;
-  }
-#else
-  matgen_csr_matrix_t* local_input_csr = input_csr;
-#endif
 
-  // Step 3: Scale matrix
-  if (!config.quiet && rank == 0) {
-    printf("\n[3/4] Scaling matrix using %s interpolation...\n", config.method);
-    printf("  Backend: %s\n", matgen_exec_policy_name(resolved_policy));
-  }
+    // Gather output matrix to rank 0 if using MPI
+    matgen_csr_matrix_t* output_csr = NULL;
 
-  matgen_csr_matrix_t* local_output_csr = NULL;
-  matgen_error_t err;
-
-  double start = get_wall_time();
-
-#ifdef MATGEN_HAS_MPI
-  // Synchronize before timing for accurate measurement
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    MPI_Barrier(MPI_COMM_WORLD);
-  }
-#endif
-
-  if (strcmp(config.method, "nearest") == 0) {
-    err = matgen_scale_nearest_neighbor_with_policy_detailed(
-        policy, local_input_csr, config.new_rows, config.new_cols,
-        config.collision_policy, &local_output_csr);
-  } else if (strcmp(config.method, "bilinear") == 0) {
-    err = matgen_scale_bilinear_with_policy(policy, local_input_csr,
-                                            config.new_rows, config.new_cols,
-                                            &local_output_csr);
-  } else if (strcmp(config.method, "lanczos") == 0) {
-    err = matgen_scale_lanczos_with_policy(policy, local_input_csr,
-                                           config.new_rows, config.new_cols,
-                                           &local_output_csr);
-  } else if (strcmp(config.method, "fft") == 0) {
-    err = matgen_scale_fft_with_policy(policy, local_input_csr,
-                                       config.new_rows, config.new_cols,
-                                       &local_output_csr);
-  } else {  // wavelet
-    err = matgen_scale_wavelet_with_policy(policy, local_input_csr,
-                                           config.new_rows, config.new_cols,
-                                           &local_output_csr);
-  }
-
-#ifdef MATGEN_HAS_MPI
-  // Synchronize after scaling for accurate timing
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    MPI_Barrier(MPI_COMM_WORLD);
-  }
-#endif
-
-  double end = get_wall_time();
-  double elapsed_sec = end - start;
-
-  if (err != MATGEN_SUCCESS) {
-    if (rank == 0) {
-      fprintf(stderr, "Error: Matrix scaling failed with error code %d\n", err);
-    }
 #ifdef MATGEN_HAS_MPI
     if (resolved_policy == MATGEN_EXEC_MPI) {
+      if (!config.quiet && rank == 0) {
+        printf("  Gathering results from %d MPI processes...\n", size);
+      }
+
+      output_csr =
+          matgen_csr_gather(local_output_csr, config.new_rows, config.new_cols);
+
+      // Clean up local matrices
+      if (local_output_csr) {
+        matgen_csr_destroy(local_output_csr);
+      }
       if (local_input_csr && local_input_csr != input_csr) {
         matgen_csr_destroy(local_input_csr);
       }
-      if (input_csr) {
-        matgen_csr_destroy(input_csr);
+
+      if (rank == 0 && !output_csr) {
+        fprintf(stderr, "Error: Failed to gather matrix from MPI processes\n");
+        if (input_csr) {
+          matgen_csr_destroy(input_csr);
+        }
+        MPI_Finalize();
+        return 1;
       }
-      MPI_Finalize();
+    } else {
+      output_csr = local_output_csr;
     }
-#endif
-    if (input_csr) {
-      matgen_csr_destroy(input_csr);
-    }
-    return 1;
-  }
-
-  if (!config.quiet && rank == 0) {
-    printf("  Scaling completed in %.3f ms (%.6f seconds)\n",
-           elapsed_sec * 1000.0, elapsed_sec);
-  }
-
-  // Gather output matrix to rank 0 if using MPI
-  matgen_csr_matrix_t* output_csr = NULL;
-
-#ifdef MATGEN_HAS_MPI
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    if (!config.quiet && rank == 0) {
-      printf("  Gathering results from %d MPI processes...\n", size);
-    }
-
-    output_csr =
-        matgen_csr_gather(local_output_csr, config.new_rows, config.new_cols);
-
-    // Clean up local matrices
-    if (local_output_csr) {
-      matgen_csr_destroy(local_output_csr);
-    }
-    if (local_input_csr && local_input_csr != input_csr) {
-      matgen_csr_destroy(local_input_csr);
-    }
-
-    if (rank == 0 && !output_csr) {
-      fprintf(stderr, "Error: Failed to gather matrix from MPI processes\n");
-      if (input_csr) {
-        matgen_csr_destroy(input_csr);
-      }
-      MPI_Finalize();
-      return 1;
-    }
-  } else {
-    output_csr = local_output_csr;
-  }
 #else
-  output_csr = local_output_csr;
+    output_csr = local_output_csr;
 #endif
 
-  if (config.show_stats && rank == 0) {
-    print_matrix_stats("Output Matrix Statistics", output_csr);
-  }
-
-  // Step 4: Write output matrix (rank 0 only)
-  if (!config.quiet && rank == 0) {
-    printf("\n[4/4] Writing output matrix...\n");
-  }
-
-  if (rank == 0) {
-    err = matgen_mtx_write_csr(config.output_file, output_csr);
-    if (err != MATGEN_SUCCESS) {
-      fprintf(stderr, "Error: Failed to write output matrix to '%s'\n",
-              config.output_file);
-      exit_code = 1;
-    } else if (!config.quiet) {
-      printf("  Output written successfully to '%s'\n", config.output_file);
+    if (config.show_stats && rank == 0) {
+      print_matrix_stats("Output Matrix Statistics", output_csr);
     }
-  }
+
+    // Step 4: Write output matrix (rank 0 only)
+    if (!config.quiet && rank == 0) {
+      printf("\n[4/4] Writing output matrix...\n");
+    }
+
+    if (rank == 0) {
+      err = matgen_mtx_write_csr(config.output_file, output_csr);
+      if (err != MATGEN_SUCCESS) {
+        fprintf(stderr, "Error: Failed to write output matrix to '%s'\n",
+                config.output_file);
+        exit_code = 1;
+      } else if (!config.quiet) {
+        printf("  Output written successfully to '%s'\n", config.output_file);
+      }
+    }
 
 #ifdef MATGEN_HAS_MPI
-  // Broadcast exit code to all ranks
-  if (resolved_policy == MATGEN_EXEC_MPI) {
-    MPI_Bcast(&exit_code, 1, MPI_INT, 0, MPI_COMM_WORLD);
-  }
-#endif
-
-  // Summary (rank 0 only)
-  if (!config.quiet && rank == 0 && exit_code == 0) {
-    printf(
-        "\n===================================================================="
-        "==\n");
-    printf("Scaling Summary\n");
-    printf(
-        "======================================================================"
-        "\n");
-    printf("Input:           %llu × %llu, nnz = %llu\n",
-           (unsigned long long)global_rows, (unsigned long long)global_cols,
-           (unsigned long long)global_nnz);
-    printf("Output:          %llu × %llu, nnz = %llu\n",
-           (unsigned long long)output_csr->rows,
-           (unsigned long long)output_csr->cols,
-           (unsigned long long)output_csr->nnz);
-
-    matgen_value_t input_density = (matgen_value_t)global_nnz /
-                                   (matgen_value_t)(global_rows * global_cols);
-    matgen_value_t output_density =
-        (matgen_value_t)output_csr->nnz /
-        (matgen_value_t)(output_csr->rows * output_csr->cols);
-
-    printf("Input density:   %.6f (%.2f%%)\n", input_density,
-           input_density * 100.0);
-    printf("Output density:  %.6f (%.2f%%)\n", output_density,
-           output_density * 100.0);
-    printf("Backend:         %s\n", matgen_exec_policy_name(resolved_policy));
-#ifdef MATGEN_HAS_MPI
+    // Broadcast exit code to all ranks
     if (resolved_policy == MATGEN_EXEC_MPI) {
-      printf("MPI processes:   %d\n", size);
+      MPI_Bcast(&exit_code, 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
 #endif
-    printf("Time:            %.3f ms\n", elapsed_sec * 1000.0);
-    printf(
-        "======================================================================"
-        "\n");
-    printf("\nDone!\n");
-  }
 
-  // Cleanup
-  if (rank == 0) {
-    if (input_csr) {
-      matgen_csr_destroy(input_csr);
+    // Summary (rank 0 only)
+    if (!config.quiet && rank == 0 && exit_code == 0) {
+      printf(
+          "\n===================================================================="
+          "==\n");
+      printf("Scaling Summary\n");
+      printf(
+          "======================================================================"
+          "\n");
+      printf("Input:           %llu × %llu, nnz = %llu\n",
+             (unsigned long long)global_rows, (unsigned long long)global_cols,
+             (unsigned long long)global_nnz);
+      printf("Output:          %llu × %llu, nnz = %llu\n",
+             (unsigned long long)output_csr->rows,
+             (unsigned long long)output_csr->cols,
+             (unsigned long long)output_csr->nnz);
+
+      matgen_value_t input_density = (matgen_value_t)global_nnz /
+                                     (matgen_value_t)(global_rows * global_cols);
+      matgen_value_t output_density =
+          (matgen_value_t)output_csr->nnz /
+          (matgen_value_t)(output_csr->rows * output_csr->cols);
+
+      printf("Input density:   %.6f (%.2f%%)\n", input_density,
+             input_density * 100.0);
+      printf("Output density:  %.6f (%.2f%%)\n", output_density,
+             output_density * 100.0);
+      printf("Backend:         %s\n", matgen_exec_policy_name(resolved_policy));
+#ifdef MATGEN_HAS_MPI
+      if (resolved_policy == MATGEN_EXEC_MPI) {
+        printf("MPI processes:   %d\n", size);
+      }
+#endif
+      printf("Time:            %.3f ms\n", elapsed_sec * 1000.0);
+      printf(
+          "======================================================================"
+          "\n");
+      printf("\nDone!\n");
     }
-    if (output_csr) {
-      matgen_csr_destroy(output_csr);
+
+    // Cleanup
+    if (rank == 0) {
+      if (input_csr) {
+        matgen_csr_destroy(input_csr);
+      }
+      if (output_csr) {
+        matgen_csr_destroy(output_csr);
+      }
     }
-  }
 
 #ifdef MATGEN_HAS_MPI
-  MPI_Finalize();
+    MPI_Finalize();
 #endif
 
-  return exit_code;
-}
+    return exit_code;
+  }
