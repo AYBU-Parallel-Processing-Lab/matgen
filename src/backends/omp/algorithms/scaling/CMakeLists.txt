@@ -4,4 +4,5 @@ target_sources(
     "bilinear_omp.c"
     "nearest_neighbor_omp.c"
     "adaptive_omp.c"
+    "lanczos_omp.c"
 )

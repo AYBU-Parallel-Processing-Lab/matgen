@@ -10,6 +10,10 @@
 /* Backend headers */
 #include "backends/seq/internal/lanczos_seq.h"
 
+#ifdef MATGEN_HAS_OPENMP
+#include "backends/omp/internal/lanczos_omp.h"
+#endif
+
 #ifdef MATGEN_HAS_CUDA
 #include "backends/cuda/internal/lanczos_cuda.cuh"
 #endif
@@ -55,9 +59,14 @@ matgen_error_t matgen_scale_lanczos_with_policy(
 #endif
         
         case MATGEN_EXEC_PAR:
-            /* OpenMP not implemented, fall back to sequential */
-            MATGEN_LOG_DEBUG("OpenMP not implemented for Lanczos, using sequential");
+#ifdef MATGEN_HAS_OPENMP
+            MATGEN_LOG_DEBUG("Using OpenMP backend");
+            return matgen_scale_lanczos_omp(source, new_size, result);
+#else
+            /* OpenMP not available, fall back to sequential */
+            MATGEN_LOG_DEBUG("OpenMP not available for Lanczos, using sequential");
             return matgen_scale_lanczos_seq(source, new_size, result);
+#endif
         
         default:
             MATGEN_LOG_DEBUG("Unsupported policy, using sequential");
