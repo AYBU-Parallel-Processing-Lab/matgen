@@ -254,6 +254,36 @@ matgen_error_t matgen_scale_wavelet_with_policy(
     matgen_csr_matrix_t** result);
 
 // =============================================================================
+
+// =============================================================================
+// DCT-Based Scaling
+// =============================================================================
+
+/**
+ * @brief Scale sparse matrix using DCT-based interpolation with execution policy
+ *
+ * Uses 2D Discrete Cosine Transform (DCT) with block-based processing to scale sparse matrices.
+ * The algorithm preserves structural characteristics by working in the frequency domain:
+ *   1. Identifies non-zero blocks in the input matrix
+ *   2. Applies 2D DCT-II to each non-empty block
+ *   3. Resizes DCT coefficients to target block size via crop/pad
+ *   4. Applies inverse 2D DCT-III to reconstruct scaled blocks
+ *   5. Sparsifies output using a hard threshold
+ *
+ * @param policy Execution policy (MATGEN_EXEC_SEQ, MATGEN_EXEC_PAR, or MATGEN_EXEC_PAR_UNSEQ for CUDA)
+ * @param source Source matrix (CSR format)
+ * @param new_rows Target number of rows
+ * @param new_cols Target number of columns
+ * @param result Output: scaled matrix (CSR format)
+ * @return MATGEN_SUCCESS on success, error code otherwise
+ */
+matgen_error_t matgen_scale_dct_with_policy(
+    matgen_exec_policy_t policy,
+    const matgen_csr_matrix_t* source,
+    matgen_index_t new_rows,
+    matgen_index_t new_cols,
+    matgen_csr_matrix_t** result);
+
 // Adaptive Scaling
 // =============================================================================
 

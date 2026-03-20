@@ -7,4 +7,5 @@ target_sources(
     "lanczos_dispatch.c"
     "fft_dispatch.c"
     "wavelet_dispatch.c"
+    "dct_dispatch.c"
 )

@@ -5,4 +5,5 @@ target_sources(
     "nearest_neighbor_omp.c"
     "adaptive_omp.c"
     "lanczos_omp.c"
+    "dct_omp.c"
 )

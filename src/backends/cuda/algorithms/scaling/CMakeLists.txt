@@ -7,6 +7,7 @@ if(MATGEN_ENABLE_CUDA)
       "lanczos_cuda.cu"
       "fft_cuda.cu"
       "wavelet_cuda.cu"
+      "dct_cuda.cu"
   )
   target_link_libraries(matgen PRIVATE cufft)
   message(STATUS "CUDA FFT backend enabled (cuFFT)")
